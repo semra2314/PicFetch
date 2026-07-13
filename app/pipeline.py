@@ -36,5 +36,5 @@ if __name__ == "__main__":
     download = mock_download
     detect = mock_detect
     rank = mock_rank
-    sonuc = run("kedi", 1)
-    print(sonuc)
+    result = run("kedi", 1)
+    print(result)
