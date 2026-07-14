@@ -25,7 +25,7 @@ def mock_search(keyword, count):
     return [Candidate(url="https://ornek.com/kedi.jpg"), Candidate(url="https://ornek.com/kedi2.jpg")] 
 
 def mock_download(candidates):
-    return [DownloadedImage(url=candidate.url, data=b"fake_image_data") if candidate.url != "https://ornek.com/kedi2.jpg" else None for candidate in candidates]
+    return [DownloadedImage(url=candidate.url, data=b"fake_image_data") for candidate in candidates if candidate.url != "https://ornek.com/kedi2.jpg" ]
 
 def mock_detect(image, keyword):
     return DetectionResult(image=image, confidence=0.9)
