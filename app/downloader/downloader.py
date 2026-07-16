@@ -33,6 +33,15 @@ def download(candidates: list[Candidate]) -> list[DownloadedImage]:
                 # continue: Bu satır, döngünün geri kalanını (yani indir ve listeye ekle kısmını) bu aday için çalıştırmaz ve bir sonraki adaya geçer.
                 # continue  # Bu URL'yi atla, bir sonrakine geç
         
+                 # Boyut kontrolü
+                content_length = response.headers.get('Content-Length')
+                if content_length and int(content_length) > config.MAX_FILE_SIZE:
+                    size_mb = int(content_length) / (1024 * 1024)
+                    logging.warning(f"Dosya çok büyük: {candidate.url} - Boyut: {size_mb:.2f} MB (Max: {config.MAX_FILE_SIZE / (1024 * 1024)} MB)")
+                    break  # Büyük dosyayı tekrar tekrar denemenin anlamı yok
+
+
+
                 # 2. Başarılı! Veriyi al ve listeye ekle.
 
                 bytes_data = response.content # content: Yanıttan gelen ham binary veriyi (bayt dizisi) alır.

@@ -1,0 +1,2 @@
+# Bu dosya ana klasörde olduğu için Python 'app' modülünü her zaman bulur yani test dosyasındayken play yaptığımızda üst klasördeki dosyalara erişemediğimiz için böyle bir yol buldum
+from tests.test_download import * 
