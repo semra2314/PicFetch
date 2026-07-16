@@ -13,54 +13,61 @@ def download(candidates: list[Candidate]) -> list[DownloadedImage]:
     # İnternet varsa ve URL geçerliyse, görseli indirip listeye ekliyor.
     # eğer requests.get(candidate.url) satırında bir sorun olursa (örneğin URL bozuksa veya internet anlık koparsa), programın tamamı çöker (ConnectionError veya Timeout hatası fırlatır). Bizim istediğimiz ise o URL'yi atlayıp bir sonrakine geçmesi.
     for candidate in candidates:    # bu döngü, dışarıdan gelen aday listesini baştan sona gezer. ve sırayla her birini işler.
-        success = False  # Bu URL için henüz başarılı olmadık
         # config.DOWNLOAD_RETRIES 2 ise, range(3) bize 0, 1, 2 verir (Toplam 3 deneme)
         for attempt in range(config.DOWNLOAD_RETRIES + 1):
             try:
-                response = requests.get(candidate.url, timeout= config.DOWNLOAD_TIMEOUT) # requests.get(): Seçtiği URL'ye HTTP GET isteği atar.
-            # response:requests.get() fonksiyonunun döndürdüğü HTTP yanıt nesnesidir. Bu nesne içinde görselin verisi, boyutu, yükleme durumu (status) gibi birçok bilgi bulunur.
+                # stream=True: İsteği açar ancak gövdeyi (body) hemen indirmez, sadece header'ları çeker.
+                response = requests.get(candidate.url, stream=True, timeout=config.DOWNLOAD_TIMEOUT)
 
-                # 1. Kontrol: Gerçekten görsel mi?
+                # 1. Kontrol: HTTP durum kodu başarılı mı? (Örn: 404, 403 vb. durumları logda ayrıştırmak için)
+                if response.status_code != 200:
+                    logging.warning(f"İstek başarısız (Durum kodu: {response.status_code}): {candidate.url}")
+                    if response.status_code in [400, 401, 403, 404, 410]:
+                        break  # İstemci hatalarında tekrar denemeye gerek yok, döngüden çık.
+                    response.raise_for_status()  # Sunucu hatalarında (5xx) exception fırlatarak retry yapılmasını sağla.
+
+                # 2. Kontrol: Gerçekten görsel mi?
                 content_type = response.headers.get('Content-Type', '')
-            # content_type: Yanıttan gelen Content-Type başlığını alır (Örn: "image/jpeg"). Eğer başlık yoksa boş string döner.
-            
                 if not content_type.startswith('image/'):
-                # content_type.startswith('image/'): Eğer 'content_type' stringi 'image/' ile başlamıyorsa (yani görsel değilse) doğru (True) döner.
-                    logging.warning(f"\n URL görsel değil: {candidate.url} - İçerik tipi: {content_type}")
-                # logging.warning(...): Eğer görsel değilse, bir uyarı mesajı kaydeder.
+                    logging.warning(f"URL görsel değil: {candidate.url} - İçerik tipi: {content_type} (Durum kodu: {response.status_code})")
                     break  # Görsel değilse tekrar denemenin anlamı yok, döngüden çık.
 
-                # continue: Bu satır, döngünün geri kalanını (yani indir ve listeye ekle kısmını) bu aday için çalıştırmaz ve bir sonraki adaya geçer.
-                # continue  # Bu URL'yi atla, bir sonrakine geç
-        
-                 # Boyut kontrolü
+                # 3. Kontrol: Boyut kontrolü (Content-Length varsa kontrol et)
                 content_length = response.headers.get('Content-Length')
                 if content_length and int(content_length) > config.MAX_FILE_SIZE:
                     size_mb = int(content_length) / (1024 * 1024)
                     logging.warning(f"Dosya çok büyük: {candidate.url} - Boyut: {size_mb:.2f} MB (Max: {config.MAX_FILE_SIZE / (1024 * 1024)} MB)")
                     break  # Büyük dosyayı tekrar tekrar denemenin anlamı yok
 
+                # 4. Dinamik Boyut Kontrolü & Parça Parça İndirme
+                # Sunucu Content-Length başlığı göndermese bile veriyi indirirken boyutu sınırlar.
+                bytes_data = bytearray()
+                exceeded = False
+                for chunk in response.iter_content(chunk_size=128 * 1024):  # 128 KB'lık parçalar halinde oku
+                    if chunk:
+                        bytes_data.extend(chunk)
+                        if len(bytes_data) > config.MAX_FILE_SIZE:
+                            size_mb = len(bytes_data) / (1024 * 1024)
+                            logging.warning(f"Dosya indirilirken sınır aşıldı: {candidate.url} - Aşım Boyutu: {size_mb:.2f} MB (Max: {config.MAX_FILE_SIZE / (1024 * 1024)} MB)")
+                            exceeded = True
+                            break
+                
+                if exceeded:
+                    break  # Sınır aşıldığı için döngüden çık ve bu adayı atla
 
-
-                # 2. Başarılı! Veriyi al ve listeye ekle.
-
-                bytes_data = response.content # content: Yanıttan gelen ham binary veriyi (bayt dizisi) alır.
-
-                image = DownloadedImage(url=candidate.url, data=bytes_data) # DownloadedImage: İndirilen görselin URL'sini ve raw içeriğini tutan yapıyı oluşturur.
-
-                downloaded_images.append(image) # append: Bu yeni oluşturulan 'image' nesnesini, 'downloaded_images' listesine ekler.
-                success = True  # Başardık!
+                # 5. Başarılı! Veriyi al ve listeye ekle.
+                image = DownloadedImage(url=candidate.url, data=bytes(bytes_data))
+                downloaded_images.append(image)
                 break  # Başarılı olduğumuz için retry döngüsünden çık, bir sonraki URL'ye geç.
 
             except Exception as e:
-            # Hata oldu. Kaçıncı deneme olduğumuzu loglayalım.
+                # Hata oldu. Kaçıncı deneme olduğumuzu loglayalım.
                 logging.warning(f"İndirme hatası (Deneme {attempt + 1}/{config.DOWNLOAD_RETRIES + 1}): {candidate.url} - Hata: {e}")
-            # Burada 'break' YOK. Döngü devam eder ve bir sonraki 'attempt' denemesini yapar.
+                # Burada 'break' YOK. Döngü devam eder ve bir sonraki 'attempt' denemesini yapar.
 
-    return downloaded_images # return: Tüm döngü bittikten sonra, içinde indirilen tüm görsellerin bulunduğu listeyi geri döndürür.
-
-
-
+    # Toplu özet logu
+    logging.info(f"İndirme işlemi tamamlandı. Toplam aday: {len(candidates)}, Başarılı: {len(downloaded_images)}")
+    return downloaded_images
 
 """ 
 range(config.DOWNLOAD_RETRIES + 1): Eğer config'de retry 2 ise, +1 ekleyerek toplam 3 deneme (1 ilk deneme + 2 retry) hakkımız olur.
