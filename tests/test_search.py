@@ -3,6 +3,7 @@
 from app.search.search import search
 from app.domain import Candidate
 from unittest.mock import patch
+from app.config import SEARCH_RETRIES
 import logging
 
 # normal durum
@@ -47,5 +48,20 @@ def test_search_error(caplog):
             with caplog.at_level(logging.ERROR):
                 result = search("cat", 3)
             assert result == []
-            assert mock_ddgs.return_value.images.call_count == 3
+            assert mock_ddgs.return_value.images.call_count == SEARCH_RETRIES
             assert "failed" in caplog.text
+
+
+def test_search_recovers():
+    with patch("app.search.search.DDGS") as mock_ddgs:
+        with patch("app.search.search.time.sleep"):
+            mock_ddgs.return_value.images.side_effect = [
+                Exception("ağ hatası"),  # 1. deneme patlar
+                [{"image": "http://ornek.com/1.jpg"}],  # 2. deneme başarılı
+            ]
+            result = search("cat", 3)
+            assert len(result) == 1
+            assert result[0].url == "http://ornek.com/1.jpg"
+            assert (
+                mock_ddgs.return_value.images.call_count == 2
+            )  # call_count 2. kez denendi mi
