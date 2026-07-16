@@ -15,23 +15,23 @@ def run(keyword: str, count: int) -> list[DownloadedImage]:
         logger.warning("Arama sonucu boş döndü, keyword: %s", keyword)
         return []
 
-    results = []
-    for candidate in candidates:
-        downloaded = download([candidate])
-        if not downloaded:
-            logger.warning("Aday indirilemedi: %s", candidate.url)
-            continue
-        image = downloaded[0]
+    # 2. Madde Çözümü: Tüm adayları tek seferde/toplu olarak indiriyoruz
+    downloaded_images = download(candidates)
+    if not downloaded_images:
+        logger.warning("Adayların hiçbiri indirilemedi, keyword: %s", keyword)
+        return []
 
+    results = []
+    for image in downloaded_images:
+        # 1. Madde Çözümü: detect() artık None dönmediği için 'if result is None' kontrolü kaldırıldı.
+        # Güven skoru (confidence) düşük olsa bile rank() fonksiyonunda DETECT_THRESHOLD ile elenecek.
         result = detect(image, keyword)
-        if result is None:
-            logger.warning("Tespit başarısız, görsel atlandı: %s", image.url)
-            continue
         results.append(result)
 
     logger.info("toplam aday sayısı: %d, toplam sonuç sayısı: %d", len(candidates), len(results))
-
+    
     ranked = rank(results, DETECT_THRESHOLD, count)
     if not ranked:
         logger.warning("Sıralama sonrası hiç sonuç kalmadı (eşik: %s)", DETECT_THRESHOLD)
+        
     return ranked
