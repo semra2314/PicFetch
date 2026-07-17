@@ -1,12 +1,22 @@
 import argparse
+from app.logging_setup import setup_logging
+from app.pipeline import run
 
 
 def main() -> None:
+    setup_logging()
     parser = argparse.ArgumentParser()
     parser.add_argument("keyword", type=str)
-    parser.add_argument("--count", type=str, default=10)
+    parser.add_argument("--count", type=int, default=10)
     args = parser.parse_args()
-    print(f"keyword={args.keyword}, count={args.count}")
+    results = run(args.keyword, args.count)
+
+    print(f"{len(results)} adet görsel bulundu")
+
+    for i, image in enumerate(results):
+        file_name = f"{args.keyword}_{i}.jpg"
+        with open(file_name, "wb") as f:
+            f.write(image.data)
 
 
 if __name__ == "__main__":
