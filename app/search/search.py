@@ -26,7 +26,9 @@ def search(keyword: str, count: int) -> list[Candidate]:
                 )  # kritik durum değil ama uyarı alıyoruz(warning)
                 return []
 
-            for result in results:  # her bir sonuç için candidate(aday nesne )oluşturup listeledik
+            for result in (
+                results
+            ):  # her bir sonuç için candidate(aday nesne )oluşturup listeledik
                 url = result.get("image")
                 if not url:
                     logger.warning("eksik anahtarlı sonuç atlandı")
@@ -39,11 +41,9 @@ def search(keyword: str, count: int) -> list[Candidate]:
 
             return candidates  # sonuc 0 değilse aday nesneleri döndür
 
-        except Exception as e:
-            logger.error(
-                f"Search attempt {attempt + 1} failed: {e}"
-            )  # kaynak hatası (loglayıp tekrar dene)
-            time.sleep(
-                SEARCH_RETRY_DELAY
-            )  # bir sonraki deneme için şu anlık 3sn bekler
-    return []  # 3 kez denendikten sonra
+        except Exception:
+            logger.exception(f"Search attempt {attempt + 1} failed")
+            time.sleep(SEARCH_RETRY_DELAY)
+            # bir sonraki deneme için
+            # configden gelen süre kadar bekler(backoff)
+    return []  # tüm denemeler bitti, hiçbiri başarılı olmadı: boş dön
