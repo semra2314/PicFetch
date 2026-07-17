@@ -14,6 +14,7 @@ logger = logging.getLogger(__name__)
 _model: YOLOE | None = None
 _model_lock = threading.Lock()
 
+
 def _get_or_load_model() -> YOLOE:
     global _model
     if _model is None:
@@ -24,13 +25,16 @@ def _get_or_load_model() -> YOLOE:
                 logger.info("Model başarıyla yüklendi.")
     return _model
 
+
 def detect(image: DownloadedImage, keyword: str) -> DetectionResult:
     pil_img = Image.open(BytesIO(image.data))
     model = _get_or_load_model()
 
     with _model_lock:
         names = [keyword]
-        model.set_classes(names, model.get_text_pe(names)) # hem kelimeyi hemde kelimenin sayısal temsilini modele veriyoruz.
+        model.set_classes(
+            names, model.get_text_pe(names)
+        )  # hem kelimeyi hemde kelimenin sayısal temsilini modele veriyoruz.
         results = model(pil_img, verbose=False)
 
     boxes = results[0].boxes
