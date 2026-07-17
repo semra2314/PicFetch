@@ -2,3 +2,7 @@
 __pycache__/
 *.pt
 .vscode/
+.mypy_cache/
+.pytest_cache/
+.ruff_cache/
+*.ts
