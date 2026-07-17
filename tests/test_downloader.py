@@ -8,6 +8,7 @@ from unittest.mock import patch, Mock
 # Test edeceğimiz download fonksiyonunu ve test girdisi olarak kullanacağımız Candidate sınıfını projeden çağırıyoruz.
 from app.downloader.downloader import download
 from app.domain import Candidate
+from app.config import DOWNLOAD_TIMEOUT
 
 
 # @patch dekoratörü, requests.get fonksiyonunu geçici olarak yakalar ve yerine sahte (dublör) bir fonksiyon koyar.
@@ -53,7 +54,8 @@ def test_download_success(mock_get):
 
     # Kodumuzun requests.get'i tam olarak hangi parametrelerle (stream=True ve timeout) ve kaç kez çağırdığını kontrol ediyoruz.
     mock_get.assert_called_once_with(
-        "http://sahte-site.com/resim.jpg", stream=True, timeout=8
+        "http://sahte-site.com/resim.jpg", stream=True, timeout=DOWNLOAD_TIMEOUT
+
     )
 
 
