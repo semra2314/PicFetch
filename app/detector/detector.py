@@ -27,20 +27,23 @@ def _get_or_load_model() -> YOLOE:
 
 
 def detect(image: DownloadedImage, keyword: str) -> DetectionResult:
-    pil_img = Image.open(BytesIO(image.data))
-    model = _get_or_load_model()
+    try:
+        pil_img = Image.open(BytesIO(image.data))
+        model = _get_or_load_model()
 
-    with _model_lock:
-        names = [keyword]
-        model.set_classes(
-            names, model.get_text_pe(names)
-        )  # hem kelimeyi hemde kelimenin sayısal temsilini modele veriyoruz.
-        results = model(pil_img, verbose=False)
+        with _model_lock:
+            names = [keyword]
+            model.set_classes(names, model.get_text_pe(names))
+            results = model(pil_img, verbose=False)
 
-    boxes = results[0].boxes
-    if boxes.conf.numel() == 0:
-        max_conf = 0.0
-    else:
-        max_conf = float(boxes.conf.max().cpu().item())
+        boxes = results[0].boxes
+        if boxes.conf.numel() == 0:
+            max_conf = 0.0
+        else:
+            max_conf = float(boxes.conf.max().cpu().item())
 
-    return DetectionResult(image=image, confidence=max_conf)
+        return DetectionResult(image=image, confidence=max_conf)
+
+    except Exception as e:
+        logger.error(f"Görsel işlenirken hata oluştu: {e}")
+        return DetectionResult(image=image, confidence=0.0)
