@@ -55,6 +55,7 @@ def test_download_success(mock_get):
     # Kodumuzun requests.get'i tam olarak hangi parametrelerle (stream=True ve timeout) ve kaç kez çağırdığını kontrol ediyoruz.
     mock_get.assert_called_once_with(
         "http://sahte-site.com/resim.jpg", stream=True, timeout=DOWNLOAD_TIMEOUT
+
     )
 
 
