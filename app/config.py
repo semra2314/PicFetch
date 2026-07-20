@@ -5,3 +5,4 @@ DOWNLOAD_RETRIES = 2
 SEARCH_RETRIES = 3
 SEARCH_RETRY_DELAY = 3
 MAX_FILE_SIZE = 10 * 1024 * 1024  # 10MB
+MAX_CONCURRENT_DOWNLOADS = 5  # Aynı anda indirilecek maksimum görsel sayısı

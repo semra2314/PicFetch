@@ -1,10 +1,12 @@
 import logging  # bu satırın amacı logging: Hata olduğunda print yerine profesyonelce log kaydı tutmak için (Proje kuralı #5).
+from concurrent.futures import ThreadPoolExecutor, as_completed
+
 import requests  # bu satır requests: HTTP(Internet) üzerinden veri (Resim/URL) çekmek için kullanılan kütüphane.
 
 from app.domain import (
     Candidate,
     DownloadedImage,
-)  # Modüller arası konuşmamızı sağlayan ortak veri tipleri:Candidate: İndirilecek görsel adayı (URL + Source). DownloadedImage: Başarılı indirme sonrası oluşan veri (Binary içerik + Tür).
+)  # Modüller arası konuşmamızı sağlayan ortak veri tipleri: Candidate: İndirilecek görsel adayı (URL + Source). DownloadedImage: Başarılı indirme sonrası oluşan veri (Binary içerik + Tür).
 from app import (
     config,
 )  # Proje kuralı #7). Bu dosyanın "Hız Limiti" (Delay) gibi ayarlarını buradan okuruz.
@@ -13,22 +15,16 @@ logger = logging.getLogger(__name__)
 # config: Timeout ve retry gibi ayarları tek bir yerden (config.py) okumak için.
 
 
-def download(candidates: list[Candidate]) -> list[DownloadedImage]:
-    """Her URL'yi indirir. İndirilemeyeni/gerçek görsel olmayanı ELER (listeye koymaz, LOGLAR).
-    Yani dönen liste, girdiden kısa olabilir. Timeout ve retry sayısı config'ten gelir."""
-    downloaded_images = []
-
-    # İnternet varsa ve URL geçerliyse, görseli indirip listeye ekliyor.
-    # eğer requests.get(candidate.url) satırında bir sorun olursa (örneğin URL bozuksa veya internet anlık koparsa), programın tamamı çöker (ConnectionError veya Timeout hatası fırlatır). Bizim istediğimiz ise o URL'yi atlayıp bir sonrakine geçmesi.
-    for candidate in candidates:  # bu döngü, dışarıdan gelen aday listesini baştan sona gezer. ve sırayla her birini işler.
-        # config.DOWNLOAD_RETRIES 2 ise, range(3) bize 0, 1, 2 verir (Toplam 3 deneme)
-        for attempt in range(config.DOWNLOAD_RETRIES + 1):
+def _download_single(candidate: Candidate) -> DownloadedImage | None:
+    """Tek bir URL'yi indirir. Başarısızsa None döndürür."""
+    # config.DOWNLOAD_RETRIES 2 ise, range(3) bize 0, 1, 2 verir (Toplam 3 deneme)
+    for attempt in range(config.DOWNLOAD_RETRIES + 1):
+        try:
+            # stream=True: İsteği açar ancak gövdeyi (body) hemen indirmez, sadece header'ları çeker.
+            response = requests.get(
+                candidate.url, stream=True, timeout=config.DOWNLOAD_TIMEOUT
+            )
             try:
-                # stream=True: İsteği açar ancak gövdeyi (body) hemen indirmez, sadece header'ları çeker.
-                response = requests.get(
-                    candidate.url, stream=True, timeout=config.DOWNLOAD_TIMEOUT
-                )
-
                 # 1. Kontrol: HTTP durum kodu başarılı mı? (Örn: 404, 403 vb. durumları logda ayrıştırmak için)
                 if response.status_code != 200:
                     logger.warning(
@@ -40,7 +36,7 @@ def download(candidates: list[Candidate]) -> list[DownloadedImage]:
 
                 # 2. Kontrol: Gerçekten görsel mi?
                 content_type = response.headers.get("Content-Type", "")
-                if not content_type.startswith("image/"):
+                if not content_type.lower().startswith("image/"):
                     logger.warning(
                         f"URL görsel değil: {candidate.url} - İçerik tipi: {content_type} (Durum kodu: {response.status_code})"
                     )
@@ -75,17 +71,47 @@ def download(candidates: list[Candidate]) -> list[DownloadedImage]:
                 if exceeded:
                     break  # Sınır aşıldığı için döngüden çık ve bu adayı atla
 
-                # 5. Başarılı! Veriyi al ve listeye ekle.
-                image = DownloadedImage(url=candidate.url, data=bytes(bytes_data))
-                downloaded_images.append(image)
-                break  # Başarılı olduğumuz için retry döngüsünden çık, bir sonraki URL'ye geç.
+                # 5. Başarılı! Veriyi al ve döndür.
+                return DownloadedImage(url=candidate.url, data=bytes(bytes_data))
+            finally:
+                response.close()
 
+        except Exception as e:
+            # Hata oldu. Kaçıncı deneme olduğumuzu loglayalım.
+            logger.warning(
+                f"İndirme hatası (Deneme {attempt + 1}/{config.DOWNLOAD_RETRIES + 1}): {candidate.url} - Hata: {e}"
+            )
+            # Burada 'break' YOK. Döngü devam eder ve bir sonraki 'attempt' denemesini yapar.
+
+    return None
+
+
+def download(candidates: list[Candidate]) -> list[DownloadedImage]:
+    """URL'leri eşzamanlı olarak indirir. İndirilemeyeni/gerçek görsel olmayanı ELER (listeye koymaz, LOGLAR).
+    Yani dönen liste, girdiden kısa olabilir. Timeout ve retry sayısı config'ten gelir."""
+    if not candidates:
+        return []
+
+    downloaded_images = []
+
+    # Thread pool ile eşzamanlı indirme
+    # max_workers, aynı anda bellekte tutulacak maksimum görsel sayısını (akış prensibi) sınırlar.
+    with ThreadPoolExecutor(max_workers=config.MAX_CONCURRENT_DOWNLOADS) as executor:
+        # Tüm adaylar için görevleri başlat
+        future_to_candidate = {
+            executor.submit(_download_single, candidate): candidate
+            for candidate in candidates
+        }
+
+        # Tamamlanan görevleri topla
+        for future in as_completed(future_to_candidate):
+            candidate = future_to_candidate[future]
+            try:
+                result = future.result()
+                if result is not None:
+                    downloaded_images.append(result)
             except Exception as e:
-                # Hata oldu. Kaçıncı deneme olduğumuzu loglayalım.
-                logger.warning(
-                    f"İndirme hatası (Deneme {attempt + 1}/{config.DOWNLOAD_RETRIES + 1}): {candidate.url} - Hata: {e}"
-                )
-                # Burada 'break' YOK. Döngü devam eder ve bir sonraki 'attempt' denemesini yapar.
+                logger.error(f"Beklenmeyen hata ({candidate.url}): {e}")
 
     # Toplu özet logu
     logger.info(

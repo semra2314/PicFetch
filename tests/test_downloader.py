@@ -158,3 +158,26 @@ def test_download_no_retry_on_client_error(mock_get):
     assert len(results) == 0, "404 veren site indirilmemeli"
     # İstemci hatası olduğu için sadece 1 kez denenmeli, retry yapılmamalıdır
     assert mock_get.call_count == 1
+
+@patch("app.downloader.downloader.config.MAX_CONCURRENT_DOWNLOADS", 2)
+@patch("app.downloader.downloader.requests.get")
+def test_download_concurrent_execution(mock_get):
+    """Eşzamanlı indirme işleminin doğru çalıştığını ve tüm görevlerin tamamlandığını test eder."""
+    fake_response = Mock()
+    fake_response.status_code = 200
+    fake_response.headers = {
+        "Content-Type": "image/jpeg",
+        "Content-Length": "5000",
+    }
+    fake_response.iter_content = Mock(return_value=[b"sahte_resim_verisi"])
+    mock_get.return_value = fake_response
+
+    # 5 adet aday oluşturalım (MAX_CONCURRENT_DOWNLOADS=2'den büyük olmalı)
+    candidates = [Candidate(url=f"http://sahte-site.com/resim{i}.jpg") for i in range(5)]
+    
+    results = download(candidates)
+    
+    # Tüm 5 görsel başarıyla indirilmiş olmalı
+    assert len(results) == 5, "Tüm 5 görsel başarıyla indirilmiş olmalı"
+    # ThreadPoolExecutor'ın her aday için requests.get'i çağırdığını doğrula
+    assert mock_get.call_count == 5
