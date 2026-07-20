@@ -62,3 +62,12 @@ def test_equal_confidence_preserves_input_order():
     result = rank([a, b], threshold=0.25, limit=5)
     assert result[0].url == a.image.url
     assert result[1].url == b.image.url
+
+def test_confidence_equal_to_threshold_is_included():
+    a = DetectionResult(
+        image=DownloadedImage(url="http://ornek.com/1.jpg", data=b"dummyjpg"),
+        confidence=0.25,
+    )
+    result = rank([a], threshold=0.25, limit=5)
+    assert len(result) == 1
+
