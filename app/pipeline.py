@@ -20,7 +20,11 @@ def run(keyword: str, count: int) -> PipelineResult:
             logger.warning("İndirme başarısız, atlanıyor: %s", candidate.url)
             continue
         image = downloaded[0]
-        result = detect(image,keyword)
+        try:
+            result = detect(image, keyword)
+        except Exception:
+            logger.warning("Tespit başarısız, atlanıyor: %s", image.url)
+            continue
         results.append(result)
     ranked = rank(results,DETECT_THRESHOLD,count)
     
