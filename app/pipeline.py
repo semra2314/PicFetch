@@ -11,6 +11,8 @@ logger = logging.getLogger(__name__)
 
 
 def run(keyword: str, count: int) -> PipelineResult:
+    if count < 1:
+        raise ValueError(f"count pozitif olmalı, alınan: {count}")
     fetch_count = int(count * OVERFETCH)
     candidates: list[Candidate] = search(keyword, fetch_count)
     results: list[DetectionResult] = []
