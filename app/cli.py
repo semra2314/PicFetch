@@ -14,7 +14,7 @@ def main() -> None:
     print(f"{len(results)} adet görsel bulundu")
 
     for i, image in enumerate(results):
-        file_name = f"{args.keyword}_{i}.jpg"
+        file_name = f"{args.keyword}_{i}{image.extension}"  # burayı jpg den image extension yaptım çünkü content type değişebilir(png,jpeg vb)
         with open(file_name, "wb") as f:
             f.write(image.data)
 

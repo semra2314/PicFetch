@@ -43,13 +43,21 @@ def _download_single(candidate: Candidate) -> DownloadedImage | None:
                     break  # Görsel değilse tekrar denemenin anlamı yok, döngüden çık.
 
                 # 3. Kontrol: Boyut kontrolü (Content-Length varsa kontrol et)
-                content_length = response.headers.get("Content-Length")
-                if content_length and int(content_length) > config.MAX_FILE_SIZE:
-                    size_mb = int(content_length) / (1024 * 1024)
-                    logger.warning(
-                        f"Dosya çok büyük: {candidate.url} - Boyut: {size_mb:.2f} MB (Max: {config.MAX_FILE_SIZE / (1024 * 1024)} MB)"
-                    )
-                    break  # Büyük dosyayı tekrar tekrar denemenin anlamı yok
+                content_length_header = response.headers.get("Content-Length")
+                if content_length_header: # bu satır content_length_header None değilse kontrol eder
+                    try: # content length integer değilse(str vb.) hata fırlatır
+                        content_length = int(content_length_header)
+                        if content_length > config.MAX_FILE_SIZE:
+                            size_mb = content_length / (1024 * 1024)
+                            logger.warning(
+                                f"Dosya çok büyük: {candidate.url} - Boyut: {size_mb:.2f} MB (Max: {config.MAX_FILE_SIZE / (1024 * 1024)} MB)"
+                            )
+                            break  # Büyük dosyayı tekrar tekrar denemenin anlamı yok
+                        
+                    except (ValueError, TypeError): # burda content_length_header integer değilse(str vb.) hata fırlatır
+                        logger.warning(
+                            f"Geçersiz Content-Length başlığı: {content_length_header}"
+                        )
 
                 # 4. Dinamik Boyut Kontrolü & Parça Parça İndirme
                 # Sunucu Content-Length başlığı göndermese bile veriyi indirirken boyutu sınırlar.
@@ -72,11 +80,15 @@ def _download_single(candidate: Candidate) -> DownloadedImage | None:
                     break  # Sınır aşıldığı için döngüden çık ve bu adayı atla
 
                 # 5. Başarılı! Veriyi al ve döndür.
-                return DownloadedImage(url=candidate.url, data=bytes(bytes_data))
+                return DownloadedImage(
+                    url=candidate.url,
+                    data=bytes(bytes_data),
+                    content_type=content_type, # burada 
+                )
             finally:
                 response.close()
 
-        except Exception as e:
+        except requests.RequestException as e:
             # Hata oldu. Kaçıncı deneme olduğumuzu loglayalım.
             logger.warning(
                 f"İndirme hatası (Deneme {attempt + 1}/{config.DOWNLOAD_RETRIES + 1}): {candidate.url} - Hata: {e}"

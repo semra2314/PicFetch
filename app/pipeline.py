@@ -28,7 +28,9 @@ def mock_search(keyword, count):
 
 def mock_download(candidates):
     return [
-        DownloadedImage(url=candidate.url, data=b"fake_image_data")
+        DownloadedImage(
+            url=candidate.url, data=b"fake_image_data", content_type="image/jpeg"
+        )
         for candidate in candidates
     ]
 
