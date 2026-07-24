@@ -33,4 +33,4 @@ def test_detect_with_corrupted_image_returns_zero(caplog):
     fake_image = DownloadedImage(url="http://ornek.com/bozuk.jpg", data=corrupted_image)
     result = detector.detect(fake_image, "kedi")
     assert result.confidence == 0.0
-    assert "Görsel işlenirken hata oluştu:" in caplog.text
+    assert "Görsel işlenirken hata oluştu." in caplog.text
