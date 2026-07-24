@@ -30,7 +30,7 @@ def _download_single(candidate: Candidate) -> DownloadedImage | None:
                     logger.warning(
                         f"İstek başarısız (Durum kodu: {response.status_code}): {candidate.url}"
                     )
-                    if response.status_code in [400, 401, 403, 404, 410]:
+                    if response.status_code in config.NON_RETRYABLE_STATUS_CODES:
                         break  # İstemci hatalarında tekrar denemeye gerek yok, döngüden çık.
                     response.raise_for_status()  # Sunucu hatalarında (5xx) exception fırlatarak retry yapılmasını sağla.
 
@@ -64,8 +64,8 @@ def _download_single(candidate: Candidate) -> DownloadedImage | None:
                 bytes_data = bytearray()
                 exceeded = False
                 for chunk in response.iter_content(
-                    chunk_size=128 * 1024
-                ):  # 128 KB'lık parçalar halinde oku
+                    chunk_size=config.DOWNLOAD_CHUNK_SIZE
+                ):  # config'ten gelen boyutta parçalar halinde oku
                     if chunk:
                         bytes_data.extend(chunk)
                         if len(bytes_data) > config.MAX_FILE_SIZE:

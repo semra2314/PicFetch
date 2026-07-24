@@ -25,7 +25,10 @@ def run(keyword: str, count: int) -> PipelineResult:
         image = downloaded[0]
         result = detect(image, keyword)
         results.append(result)
-    return rank(results, DETECT_THRESHOLD, count)
+    ranked = rank(results, DETECT_THRESHOLD, count)
+    if len(ranked) < count:
+        logger.info("Yetersiz sonuç: %d istendi, %d bulundu", count, len(ranked))
+    return PipelineResult(images=ranked, requested=count, found=len(ranked))
 
 
 def mock_search(keyword, count):
@@ -59,10 +62,4 @@ if __name__ == "__main__":
     rank = mock_rank
     result = run("kedi", 1)
     print(result)
-    ranked = rank(results,DETECT_THRESHOLD,count)
-    
-    if len(ranked) < count:
-        logger.info("Yetersiz sonuç: %d istendi, %d bulundu", count, len(ranked))
-        
-    return PipelineResult(images=ranked, requested=count, found=len(ranked))
         
