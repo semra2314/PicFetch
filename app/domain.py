@@ -17,3 +17,10 @@ class DownloadedImage:
 class DetectionResult:
     image: DownloadedImage
     confidence: float
+
+
+@dataclass
+class PipelineResult:
+    images: list[DownloadedImage]
+    requested: int
+    found: int
