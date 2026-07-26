@@ -1,0 +1,35 @@
+name: CI
+
+on:
+  pull_request:
+    branches: [develop, main]
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Kodu indir (Checkout)
+        uses: actions/checkout@v7
+
+      - name: Python kurulumu
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+          cache: "pip"
+
+      - name: Paketleri kur
+        run: pip install -r requirements.txt
+
+      - name: Ruff lint kontrolü
+        run: ruff check .
+
+      - name: Ruff format kontrolü
+        run: ruff format --check .
+
+      - name: Mypy tip kontrolü
+        if: ${{ !cancelled() }} 
+        run: mypy app
+
+      - name: Pytest birim testleri
+        if: ${{ !cancelled() }}
+        run: pytest tests/ --ignore=tests/integration
