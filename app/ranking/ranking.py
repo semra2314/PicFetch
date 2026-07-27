@@ -1,5 +1,6 @@
 from app.domain import DownloadedImage, DetectionResult
 
+
 def rank(
     results: list[DetectionResult], threshold: float, limit: int
 ) -> list[DownloadedImage]:
