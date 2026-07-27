@@ -10,7 +10,7 @@ OVERFETCH = 2
 
 DETECT_THRESHOLD = 0.25
 # Ne işe yarar: Nesne tespit modelinin bir tespiti "geçerli" sayması için
-#   gereken minimum güven skoru (confidence).
+#   gereken minimum güven skoru.
 # Neden bu değer: Model çıktıları üzerinde yapılan deneylerde false-positive/
 #   false-negative dengesini bu seviyede kabul edilebilir bulduk.
 # Değişirse: Yükselirse -> daha az ama daha güvenilir tespit (bazı gerçek
@@ -69,9 +69,6 @@ DOWNLOADS_DIR = "data/downloads"
 #   göreli olduğu için farklı ortamlarda (dev/CI) tutarlı çalışır.
 # Değişirse: Testlerin geçici klasör (tmp_path) verebilmesi için config
 #   üzerinden okunmalı — koda gömülü olursa testler prod klasörüne yazar.
-#   Bu sabit storage kartını (Kart A) bloke ediyor; önce bu merge olmalı.
-
-# --- Model (detector.py bağlanması PR merge sonrası yapılacak) ---
 
 MODEL_NAME = "yoloe-26m-seg.pt"
 # Ne işe yarar: Nesne tespiti için kullanılan model dosyasının adı.
@@ -80,16 +77,10 @@ MODEL_NAME = "yoloe-26m-seg.pt"
 #   performans/doğruluk denemesi) tek satır değişip yeniden başlatmak yetsin.
 # Değişirse: Model dosyasının proje içinde/erişilebilir yolda bulunması
 #   gerekir; aksi halde detector başlatılamaz.
-# NOT: detector.py şu an "Blocked (changes requested)" — o PR merge olmadan
-#   detector.py'ye dokunulmuyor. Bu sabit burada tanımlı bekliyor;
-#   detector tarafındaki `config.MODEL_NAME` bağlantısı ayrı bir commit/PR
-#   olarak, detector PR'ı merge olduktan sonra yapılacak.
-# Kapsam dışı: Ayrı bir MODEL_VERSION eklenmedi — dosya adı zaten versiyonu
-#   içeriyor (yoloe-26m-seg). Önbellek kartı geldiğinde tekrar değerlendirilir.
 
 MAX_COUNT = 50
 # Ne işe yarar: Tek istekte istenebilecek maksimum görsel sayısı.
-# Neden bu değer: Geçici/tahmini — Kart G'deki ölçümden sonra kesinleşecek.
+# Neden bu değer: Geçici/tahmini
 # Değişirse: Gerçek yük MAX_COUNT × OVERFETCH'tir (bugün 100 indirme +
 #   100 çıkarım). Bu yüzden MAX_COUNT, OVERFETCH ve MAX_FILE_SIZE birbiriyle
 #   bağlantılı — biri değiştiğinde diğer ikisi de gözden geçirilmeli
