@@ -1,7 +1,6 @@
 import argparse
 from app.logging_setup import setup_logging
 from app.pipeline import run
-# from app.converter import ImageConverter
 
 
 def main() -> None:
