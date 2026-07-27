@@ -3,6 +3,7 @@ from app.domain import DownloadedImage
 from PIL import Image
 from io import BytesIO
 from unittest.mock import MagicMock
+from ultralytics.engine.results import Results
 
 
 def _gecerli_gorsel_baytlari():
@@ -12,20 +13,26 @@ def _gecerli_gorsel_baytlari():
     return buf.getvalue()
 
 
-def test_detect_resets_keyword_each_call(monkeypatch):
+def test_detect_resets_keyword_each_call(monkeypatch) -> None:
     fake_model = MagicMock()
     calls = []
     fake_model.set_classes.side_effect = lambda names, *args: calls.append(names)
-    fake_model.return_value = [
-        MagicMock(boxes=MagicMock(conf=MagicMock(numel=lambda: 0)))
-    ]
+
+    fake_result = MagicMock(spec=Results)
+    fake_result.boxes = None
+    fake_model.return_value = [fake_result]
+
     monkeypatch.setattr(detector, "_model", fake_model)
+
     dummy_image = DownloadedImage(
-        url="http://ornek.com/1.jpg", data=_gecerli_gorsel_baytlari()
+        url="http://ornek.com/1.jpg",
+        data=_gecerli_gorsel_baytlari(),
     )
+
     detector.detect(dummy_image, "kedi")
-    detector.detect(dummy_image, "araba")
-    assert calls == [["kedi"], ["araba"]]
+    detector.detect(dummy_image, "köpek")
+
+    assert calls == [["kedi"], ["köpek"]]
 
 
 def test_detect_with_corrupted_image_returns_zero(caplog):
@@ -33,4 +40,4 @@ def test_detect_with_corrupted_image_returns_zero(caplog):
     fake_image = DownloadedImage(url="http://ornek.com/bozuk.jpg", data=corrupted_image)
     result = detector.detect(fake_image, "kedi")
     assert result.confidence == 0.0
-    assert "Görsel işlenirken hata oluştu:" in caplog.text
+    assert "Görsel decode edilemedi" in caplog.text
