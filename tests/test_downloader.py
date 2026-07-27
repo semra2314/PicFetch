@@ -181,6 +181,9 @@ def test_download_no_retry_on_client_error(mock_get):
 @patch("app.downloader.downloader.requests.get")
 def test_download_concurrent_execution(mock_get):
     """Eşzamanlı indirme işleminin doğru çalıştığını ve tüm görevlerin tamamlandığını test eder."""
+    import threading
+    import time
+
     fake_response = Mock()
     fake_response.status_code = 200
     fake_response.headers = {
@@ -188,7 +191,24 @@ def test_download_concurrent_execution(mock_get):
         "Content-Length": "5000",
     }
     fake_response.iter_content = Mock(return_value=[b"sahte_resim_verisi"])
-    mock_get.return_value = fake_response
+
+    active_count = 0
+    peak_count = 0
+    lock = threading.Lock()
+
+    def mock_get_side_effect(*args, **kwargs):
+        nonlocal active_count, peak_count
+        with lock:
+            active_count += 1
+            if active_count > peak_count:
+                peak_count = active_count
+        # Parçacıkların çakışması için küçük bir bekleme
+        time.sleep(0.05)
+        with lock:
+            active_count -= 1
+        return fake_response
+
+    mock_get.side_effect = mock_get_side_effect
 
     # 5 adet aday oluşturalım (MAX_CONCURRENT_DOWNLOADS=2'den büyük olmalı)
     candidates = [
@@ -201,6 +221,64 @@ def test_download_concurrent_execution(mock_get):
     assert len(results) == 5, "Tüm 5 görsel başarıyla indirilmiş olmalı"
     # ThreadPoolExecutor'ın her aday için requests.get'i çağırdığını doğrula
     assert mock_get.call_count == 5
+    # Eşzamanlılık doğrulaması
+    assert peak_count > 1, "Birden fazla indirme eşzamanlı çalışmış olmalı"
+    assert peak_count <= 2, "Eşzamanlı indirme sayısı MAX_CONCURRENT_DOWNLOADS (2) sınırını aşmamalı"
+
+
+@patch("app.downloader.downloader.requests.get")
+def test_download_preserves_order(mock_get):
+    """İndirmelerin bitiş sırası farklı olsa bile girdideki aday sırasının korunduğunu doğrular."""
+    import time
+
+    def mock_get_side_effect(url, *args, **kwargs):
+        fake_response = Mock()
+        fake_response.status_code = 200
+        fake_response.headers = {
+            "Content-Type": "image/jpeg",
+            "Content-Length": "5000",
+        }
+        # İlk aday (resim0.jpg) daha uzun sürsün
+        if "resim0" in url:
+            time.sleep(0.1)
+            fake_response.iter_content = Mock(return_value=[b"resim_0_verisi"])
+        else:
+            fake_response.iter_content = Mock(return_value=[b"resim_1_verisi"])
+        return fake_response
+
+    mock_get.side_effect = mock_get_side_effect
+
+    candidates = [
+        Candidate(url="http://sahte-site.com/resim0.jpg"),
+        Candidate(url="http://sahte-site.com/resim1.jpg"),
+    ]
+
+    results = download(candidates)
+
+    assert len(results) == 2
+    # Bitiş sırası farklı olsa da sonuç listesinin girdi sırasını koruduğunu doğrula
+    assert results[0].url == "http://sahte-site.com/resim0.jpg"
+    assert results[0].data == b"resim_0_verisi"
+    assert results[1].url == "http://sahte-site.com/resim1.jpg"
+    assert results[1].data == b"resim_1_verisi"
+
+
+@patch("app.downloader.downloader.requests.get")
+def test_download_rejects_empty_body(mock_get):
+    """0 bayt uzunluğunda boş gövde dönen başarılı (200 OK) yanıtların reddedildiğini doğrular."""
+    fake_response = Mock()
+    fake_response.status_code = 200
+    fake_response.headers = {
+        "Content-Type": "image/jpeg",
+    }
+    # Boş gövde
+    fake_response.iter_content = Mock(return_value=[])
+    mock_get.return_value = fake_response
+
+    candidates = [Candidate(url="http://sahte-site.com/bos.jpg")]
+    results = download(candidates)
+
+    assert len(results) == 0, "Boş gövde dönen resim listeye eklenmemeli"
 
 
 # bu fonksiyonun amacı :

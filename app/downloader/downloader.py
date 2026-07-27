@@ -84,11 +84,17 @@ def _download_single(candidate: Candidate) -> DownloadedImage | None:
                 if exceeded:
                     break  # Sınır aşıldığı için döngüden çık ve bu adayı atla
 
+                if not bytes_data:
+                    logger.warning(
+                        f"Görsel verisi boş (0 bayt): {candidate.url}"
+                    )
+                    break
+
                 # 5. Başarılı! Veriyi al ve döndür.
                 return DownloadedImage(
                     url=candidate.url,
                     data=bytes(bytes_data),
-                    content_type=content_type,  # burada
+                    content_type=content_type,
                 )
             finally:
                 response.close()
@@ -109,26 +115,33 @@ def download(candidates: list[Candidate]) -> list[DownloadedImage]:
     if not candidates:
         return []
 
-    downloaded_images = []
+    results_by_index = {}
 
     # Thread pool ile eşzamanlı indirme
     # max_workers, aynı anda bellekte tutulacak maksimum görsel sayısını (akış prensibi) sınırlar.
     with ThreadPoolExecutor(max_workers=config.MAX_CONCURRENT_DOWNLOADS) as executor:
         # Tüm adaylar için görevleri başlat
-        future_to_candidate = {
-            executor.submit(_download_single, candidate): candidate
-            for candidate in candidates
+        future_to_index = {
+            executor.submit(_download_single, candidate): index
+            for index, candidate in enumerate(candidates)
         }
 
         # Tamamlanan görevleri topla
-        for future in as_completed(future_to_candidate):
-            candidate = future_to_candidate[future]
+        for future in as_completed(future_to_index):
+            index = future_to_index[future]
+            candidate = candidates[index]
             try:
                 result = future.result()
                 if result is not None:
-                    downloaded_images.append(result)
+                    results_by_index[index] = result
             except Exception as e:
-                logger.error(f"Beklenmeyen hata ({candidate.url}): {e}")
+                logger.exception(f"Beklenmeyen hata ({candidate.url}): {e}")
+
+    # Sonuçları orijinal sıraya göre diz
+    downloaded_images = [
+        results_by_index[index]
+        for index in sorted(results_by_index.keys())
+    ]
 
     # Toplu özet logu
     logger.info(
