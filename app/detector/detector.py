@@ -8,6 +8,7 @@ from PIL import Image, UnidentifiedImageError
 from ultralytics import YOLOE
 from ultralytics.engine.results import Results
 
+from app import config
 from app.domain import DownloadedImage, DetectionResult
 
 logger = logging.getLogger(__name__)
@@ -22,7 +23,7 @@ def _get_or_load_model() -> YOLOE:
         with _model_lock:
             if _model is None:
                 logger.info("YOLOE-26 modeli belleğe yükleniyor...")
-                _model = YOLOE("yoloe-26m-seg.pt")
+                _model = YOLOE(config.MODEL_NAME)
                 logger.info("Model başarıyla yüklendi.")
     return _model
 
