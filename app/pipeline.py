@@ -26,6 +26,8 @@ def run(keyword: str, count: int) -> PipelineResult:
         result = detect(image, keyword)
         results.append(result)
     ranked = rank(results, DETECT_THRESHOLD, count)
+
     if len(ranked) < count:
         logger.info("Yetersiz sonuç: %d istendi, %d bulundu", count, len(ranked))
+
     return PipelineResult(images=ranked, requested=count, found=len(ranked))
