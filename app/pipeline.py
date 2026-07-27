@@ -21,7 +21,7 @@ def run(keyword: str, count: int) -> PipelineResult:
         if not downloaded:
             logger.warning("İndirme başarısız, atlanıyor: %s", candidate.url)
             continue
-        
+
         image = downloaded[0]
         result = detect(image, keyword)
         results.append(result)

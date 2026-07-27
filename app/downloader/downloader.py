@@ -44,8 +44,10 @@ def _download_single(candidate: Candidate) -> DownloadedImage | None:
 
                 # 3. Kontrol: Boyut kontrolü (Content-Length varsa kontrol et)
                 content_length_header = response.headers.get("Content-Length")
-                if content_length_header: # bu satır content_length_header None değilse kontrol eder
-                    try: # content length integer değilse(str vb.) hata fırlatır
+                if (
+                    content_length_header
+                ):  # bu satır content_length_header None değilse kontrol eder
+                    try:  # content length integer değilse(str vb.) hata fırlatır
                         content_length = int(content_length_header)
                         if content_length > config.MAX_FILE_SIZE:
                             size_mb = content_length / (1024 * 1024)
@@ -53,8 +55,11 @@ def _download_single(candidate: Candidate) -> DownloadedImage | None:
                                 f"Dosya çok büyük: {candidate.url} - Boyut: {size_mb:.2f} MB (Max: {config.MAX_FILE_SIZE / (1024 * 1024)} MB)"
                             )
                             break  # Büyük dosyayı tekrar tekrar denemenin anlamı yok
-                        
-                    except (ValueError, TypeError): # burda content_length_header integer değilse(str vb.) hata fırlatır
+
+                    except (
+                        ValueError,
+                        TypeError,
+                    ):  # burda content_length_header integer değilse(str vb.) hata fırlatır
                         logger.warning(
                             f"Geçersiz Content-Length başlığı: {content_length_header}"
                         )
@@ -83,7 +88,7 @@ def _download_single(candidate: Candidate) -> DownloadedImage | None:
                 return DownloadedImage(
                     url=candidate.url,
                     data=bytes(bytes_data),
-                    content_type=content_type, # burada 
+                    content_type=content_type,  # burada
                 )
             finally:
                 response.close()

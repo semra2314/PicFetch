@@ -63,7 +63,9 @@ def test_download_success(mock_get):
 
 
 # Bu testte ise HTTP yanıtı dönen kaynağın bir görsel değil, HTML sayfası olması durumunda fonksiyonun bunu reddettiğini doğruluyoruz.
-@patch("app.downloader.downloader.config.DOWNLOAD_RETRIES", 2) #burda retry sayısını 2 yapıyoruz çünkü range(2+1)
+@patch(
+    "app.downloader.downloader.config.DOWNLOAD_RETRIES", 2
+)  # burda retry sayısını 2 yapıyoruz çünkü range(2+1)
 @patch("app.downloader.downloader.requests.get")
 def test_download_rejects_html(mock_get):
     # --- 1. SAHTE CEVAP HAZIRLA (HTML Yanıtı Veren Dublör) ---
@@ -90,9 +92,13 @@ def test_download_rejects_html(mock_get):
 
 
 # Başlıkta (Content-Length) belirtilen boyutun MAX_FILE_SIZE limitini aşması durumunda görselin reddedildiğini test eder.
-@patch("app.downloader.downloader.config.DOWNLOAD_RETRIES", 2) # burda retry sayısını 2 yapıyoruz çünkü range(2+1)
-@patch("app.downloader.downloader.config.MAX_FILE_SIZE", 100) # burda max dosya boyutunu 100 byte yapıyoruz
-@patch("app.downloader.downloader.requests.get") 
+@patch(
+    "app.downloader.downloader.config.DOWNLOAD_RETRIES", 2
+)  # burda retry sayısını 2 yapıyoruz çünkü range(2+1)
+@patch(
+    "app.downloader.downloader.config.MAX_FILE_SIZE", 100
+)  # burda max dosya boyutunu 100 byte yapıyoruz
+@patch("app.downloader.downloader.requests.get")
 def test_download_file_size_exceeded_header(mock_get):
     fake_response = Mock()
     fake_response.status_code = 200
@@ -112,7 +118,9 @@ def test_download_file_size_exceeded_header(mock_get):
 
 
 # Veri akışı (iter_content) sırasında indirilen boyutun dinamik olarak limitleri aşması durumunda görselin reddedildiğini test eder.
-@patch("app.downloader.downloader.config.DOWNLOAD_RETRIES", 2) # burda retry sayısını 2 yapıyoruz çünkü range(2+1)
+@patch(
+    "app.downloader.downloader.config.DOWNLOAD_RETRIES", 2
+)  # burda retry sayısını 2 yapıyoruz çünkü range(2+1)
 @patch("app.downloader.downloader.config.MAX_FILE_SIZE", 100)
 @patch("app.downloader.downloader.requests.get")
 def test_download_file_size_exceeded_dynamic(mock_get):
@@ -183,23 +191,31 @@ def test_download_concurrent_execution(mock_get):
     mock_get.return_value = fake_response
 
     # 5 adet aday oluşturalım (MAX_CONCURRENT_DOWNLOADS=2'den büyük olmalı)
-    candidates = [Candidate(url=f"http://sahte-site.com/resim{i}.jpg") for i in range(5)]
-    
+    candidates = [
+        Candidate(url=f"http://sahte-site.com/resim{i}.jpg") for i in range(5)
+    ]
+
     results = download(candidates)
-    
+
     # Tüm 5 görsel başarıyla indirilmiş olmalı
     assert len(results) == 5, "Tüm 5 görsel başarıyla indirilmiş olmalı"
     # ThreadPoolExecutor'ın her aday için requests.get'i çağırdığını doğrula
     assert mock_get.call_count == 5
 
-# bu fonksiyonun amacı : 
+
+# bu fonksiyonun amacı :
 def test_downloaded_image_extension_mapping():
     from app.domain import DownloadedImage
-    img_png = DownloadedImage(url="u1", data=b"", content_type="image/png; charset=utf-8")
+
+    img_png = DownloadedImage(
+        url="u1", data=b"", content_type="image/png; charset=utf-8"
+    )
     assert img_png.extension == ".png"
 
     img_webp = DownloadedImage(url="u2", data=b"", content_type="image/webp")
     assert img_webp.extension == ".webp"
 
-    img_unknown = DownloadedImage(url="u3", data=b"", content_type="application/octet-stream")
+    img_unknown = DownloadedImage(
+        url="u3", data=b"", content_type="application/octet-stream"
+    )
     assert img_unknown.extension == ".jpg"
