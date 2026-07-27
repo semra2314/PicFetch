@@ -86,3 +86,11 @@ MODEL_NAME = "yoloe-26m-seg.pt"
 #   olarak, detector PR'ı merge olduktan sonra yapılacak.
 # Kapsam dışı: Ayrı bir MODEL_VERSION eklenmedi — dosya adı zaten versiyonu
 #   içeriyor (yoloe-26m-seg). Önbellek kartı geldiğinde tekrar değerlendirilir.
+
+MAX_COUNT = 50
+# Ne işe yarar: Tek istekte istenebilecek maksimum görsel sayısı.
+# Neden bu değer: Geçici/tahmini — Kart G'deki ölçümden sonra kesinleşecek.
+# Değişirse: Gerçek yük MAX_COUNT × OVERFETCH'tir (bugün 100 indirme +
+#   100 çıkarım). Bu yüzden MAX_COUNT, OVERFETCH ve MAX_FILE_SIZE birbiriyle
+#   bağlantılı — biri değiştiğinde diğer ikisi de gözden geçirilmeli
+#   (toplam indirme hacmi ve disk/bellek etkisini birlikte değerlendirin).
