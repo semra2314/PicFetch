@@ -4,7 +4,7 @@ from unittest.mock import MagicMock
 import pytest
 
 from app import pipeline
-from app.config import OVERFETCH
+from app.config import MAX_COUNT,OVERFETCH
 from app.domain import Candidate, DetectionResult, DownloadedImage
 
 
@@ -152,4 +152,40 @@ def test_invalid_input(monkeypatch):
         pipeline.run("kedi", 0)
 
     # Geçersiz girdi, dış işlem başlamadan reddedilmelidir.
+    mock_search.assert_not_called()
+
+def test_count_at_max_is_accepted(monkeypatch):
+    # Test için kabul edilebilir maksimum istek sayısını belirliyoruz
+    count = MAX_COUNT
+    fetch_count = int(count * OVERFETCH)
+    candidates = make_candidates(fetch_count)
+    confidences = [0.9] * fetch_count
+
+    mock_search = MagicMock()
+    mock_search.return_value = candidates
+    monkeypatch.setattr(pipeline, "search", mock_search)
+
+    mock_download = MagicMock()
+    mock_download.side_effect = make_download_side_effect()
+    monkeypatch.setattr(pipeline, "download", mock_download)
+
+    mock_detect = MagicMock()
+    mock_detect.side_effect = make_detect_side_effect(confidences)
+    monkeypatch.setattr(pipeline, "detect", mock_detect)
+
+    result = pipeline.run("kedi", count)
+
+    assert result.found == count
+
+
+def test_count_above_max_is_rejected(monkeypatch):
+    mock_search = MagicMock()
+    monkeypatch.setattr(pipeline, "search", mock_search)
+
+    with pytest.raises(ValueError):
+        pipeline.run("kedi", MAX_COUNT + 1)
+    
+    # İstek limit aşımı nedeniyle reddedildiği için 
+    # arama fonksiyonunun HİÇ çağrılmadığını doğruluyoruz
+
     mock_search.assert_not_called()
