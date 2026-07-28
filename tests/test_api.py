@@ -3,14 +3,19 @@ from unittest.mock import patch
 from fastapi.testclient import TestClient
 
 from app import config
-from app.domain import PipelineResult
+from app.domain import PipelineResult, DownloadedImage
 from app.main import app  # FastAPI app'in tanımlı olduğu modül
 
 client = TestClient(app)
 
 
 def _mock_result(found: int = 1) -> PipelineResult:
-    return PipelineResult(images=[], requested=found, found=found)
+    images = [
+        DownloadedImage(url=f"https://example.com/{i}.jpg",
+                        data=b"fake-image-bytes",)
+        for i in range(found)
+    ]
+    return PipelineResult(images=images, requested=found, found=found)
 
 
 def test_empty_keyword_returns_422() -> None:
