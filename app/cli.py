@@ -5,8 +5,7 @@ from app.logging_setup import setup_logging
 from app.pipeline import run
 from app import config
 
-# Modül seviyesinde logger tanımlaması
-logger = logging.getLogger(__name__)
+logger = logging.getLogger("app.cli")
 
 
 def main() -> None:
