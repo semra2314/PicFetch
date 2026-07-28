@@ -11,6 +11,26 @@ class Candidate:
 class DownloadedImage:
     url: str
     data: bytes
+    # aşağıya uygun dosya uzantısı vermezsem ne olur ? --- > her resmin sonuna .jpg yazar ama resim png ise görüntü bozulur veya açılmaz
+    content_type: str = "image/jpeg"
+
+    @property
+    def extension(self) -> str:
+        """Content-Type bilgisine göre uygun dosya uzantısını döner (örneğin '.jpg', '.png')."""
+        if not self.content_type:
+            return ".jpg"
+        clean_type = self.content_type.split(";")[0].strip().lower()
+        mapping = {
+            "image/jpeg": ".jpg",
+            "image/jpg": ".jpg",
+            "image/png": ".png",
+            "image/webp": ".webp",
+            "image/gif": ".gif",
+            "image/bmp": ".bmp",
+            "image/svg+xml": ".svg",
+            "image/tiff": ".tiff",
+        }
+        return mapping.get(clean_type, ".jpg")
 
 
 @dataclass

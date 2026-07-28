@@ -61,6 +61,17 @@ MAX_FILE_SIZE = 10 * 1024 * 1024  # 10MB
 # Değişirse: Artarsa -> disk/bellek kullanımı ve indirme süresi artabilir.
 #   Azalırsa -> yüksek çözünürlüklü meşru görseller reddedilebilir.
 
+MAX_CONCURRENT_DOWNLOADS = 5  # Aynı anda indirilecek maksimum görsel sayısı
+DOWNLOAD_CHUNK_SIZE = 128 * 1024  # İndirme sırasında okunacak parça boyutu (128 KB)
+
+NON_RETRYABLE_STATUS_CODES = [
+    400,
+    401,
+    403,
+    404,
+    410,
+]  # Tekrar denenmeyecek HTTP durum kodları
+
 # --- Depolama ---
 
 DOWNLOADS_DIR = "data/downloads"

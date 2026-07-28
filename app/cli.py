@@ -11,10 +11,10 @@ def main() -> None:
     args = parser.parse_args()
     results = run(args.keyword, args.count)
 
-    print(f"{len(results)} adet görsel bulundu")
+    print(f"{results.found} adet görsel bulundu")
 
-    for i, image in enumerate(results):
-        file_name = f"{args.keyword}_{i}.jpg"
+    for i, image in enumerate(results.images):
+        file_name = f"{args.keyword}_{i}{image.extension}"  # burayı jpg den image extension yaptım çünkü content type değişebilir(png,jpeg vb)
         with open(file_name, "wb") as f:
             f.write(image.data)
 
