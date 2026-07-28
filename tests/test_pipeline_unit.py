@@ -4,7 +4,7 @@ from unittest.mock import MagicMock
 import pytest
 
 from app import pipeline
-from app.config import MAX_COUNT,OVERFETCH
+from app import config
 from app.domain import Candidate, DetectionResult, DownloadedImage
 
 
@@ -15,10 +15,11 @@ def make_candidates(n: int) -> list[Candidate]:
 
 def make_download_side_effect():
     def _download(candidates):
-        candidate = candidates[0]
-
         # detect de mock'landığı için gerçek görsel verisine ihtiyaç yoktur.
-        return [DownloadedImage(url=candidate.url, data=b"dummy_image_data")]
+        return [
+            DownloadedImage(url=candidate.url, data=b"dummy_image_data")
+            for candidate in candidates
+        ]
 
     return _download
 
@@ -38,7 +39,7 @@ def make_detect_side_effect(confidences: list[float]):
 
 def test_full_result(monkeypatch):
     count = 5
-    fetch_count = int(count * OVERFETCH)
+    fetch_count = int(count * config.OVERFETCH)
     candidates = make_candidates(fetch_count)
     confidences = [0.9] * fetch_count
 
@@ -65,10 +66,13 @@ def test_full_result(monkeypatch):
     assert mock_search.call_args[0][1] == fetch_count
     assert result.found == len(result.images)
 
+    assert mock_download.call_count == 1
+    mock_download.assert_called_once_with(candidates)
+
 
 def test_partial_result(monkeypatch):
     count = 5
-    fetch_count = int(count * OVERFETCH)
+    fetch_count = int(count * config.OVERFETCH)
     candidates = make_candidates(fetch_count)
 
     # Yalnızca iki adayın detection eşiğini geçmesini sağlarız.
@@ -92,10 +96,13 @@ def test_partial_result(monkeypatch):
     assert len(result.images) == passing_count
     assert result.found == len(result.images)
 
+    assert mock_download.call_count == 1
+    mock_download.assert_called_once_with(candidates)
+
 
 def test_empty_result(monkeypatch):
     count = 5
-    fetch_count = int(count * OVERFETCH)
+    fetch_count = int(count * config.OVERFETCH)
     candidates = make_candidates(fetch_count)
 
     # Tüm confidence değerleri eşik altında kalır.
@@ -119,10 +126,13 @@ def test_empty_result(monkeypatch):
     assert result.found == 0
     assert result.found == len(result.images)
 
+    assert mock_download.call_count == 1
+    mock_download.assert_called_once_with(candidates)
+
 
 def test_overfetch_call(monkeypatch):
     count = 5
-    fetch_count = int(count * OVERFETCH)
+    fetch_count = int(count * config.OVERFETCH)
     candidates = make_candidates(fetch_count)
     confidences = [0.9] * fetch_count
 
@@ -143,6 +153,9 @@ def test_overfetch_call(monkeypatch):
     # Search, kullanıcı sayısıyla değil overfetch uygulanmış sayıyla çağrılmalıdır.
     mock_search.assert_called_once_with("kedi", fetch_count)
 
+    assert mock_download.call_count == 1
+    mock_download.assert_called_once_with(candidates)
+
 
 def test_invalid_input(monkeypatch):
     mock_search = MagicMock()
@@ -154,10 +167,11 @@ def test_invalid_input(monkeypatch):
     # Geçersiz girdi, dış işlem başlamadan reddedilmelidir.
     mock_search.assert_not_called()
 
+
 def test_count_at_max_is_accepted(monkeypatch):
     # Test için kabul edilebilir maksimum istek sayısını belirliyoruz
-    count = MAX_COUNT
-    fetch_count = int(count * OVERFETCH)
+    count = config.MAX_COUNT
+    fetch_count = int(count * config.OVERFETCH)
     candidates = make_candidates(fetch_count)
     confidences = [0.9] * fetch_count
 
@@ -177,15 +191,17 @@ def test_count_at_max_is_accepted(monkeypatch):
 
     assert result.found == count
 
+    assert mock_download.call_count == 1
+    mock_download.assert_called_once_with(candidates)
+
 
 def test_count_above_max_is_rejected(monkeypatch):
     mock_search = MagicMock()
     monkeypatch.setattr(pipeline, "search", mock_search)
 
     with pytest.raises(ValueError):
-        pipeline.run("kedi", MAX_COUNT + 1)
-    
-    # İstek limit aşımı nedeniyle reddedildiği için 
-    # arama fonksiyonunun HİÇ çağrılmadığını doğruluyoruz
+        pipeline.run("kedi", config.MAX_COUNT + 1)
 
+    # İstek limit aşımı nedeniyle reddedildiği için
+    # arama fonksiyonunun HİÇ çağrılmadığını doğruluyoruz
     mock_search.assert_not_called()
