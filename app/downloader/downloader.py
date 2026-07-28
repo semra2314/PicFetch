@@ -85,9 +85,7 @@ def _download_single(candidate: Candidate) -> DownloadedImage | None:
                     break  # Sınır aşıldığı için döngüden çık ve bu adayı atla
 
                 if not bytes_data:
-                    logger.warning(
-                        f"Görsel verisi boş (0 bayt): {candidate.url}"
-                    )
+                    logger.warning(f"Görsel verisi boş (0 bayt): {candidate.url}")
                     break
 
                 # 5. Başarılı! Veriyi al ve döndür.
@@ -139,8 +137,7 @@ def download(candidates: list[Candidate]) -> list[DownloadedImage]:
 
     # Sonuçları orijinal sıraya göre diz
     downloaded_images = [
-        results_by_index[index]
-        for index in sorted(results_by_index.keys())
+        results_by_index[index] for index in sorted(results_by_index.keys())
     ]
 
     # Toplu özet logu

@@ -223,7 +223,9 @@ def test_download_concurrent_execution(mock_get):
     assert mock_get.call_count == 5
     # Eşzamanlılık doğrulaması
     assert peak_count > 1, "Birden fazla indirme eşzamanlı çalışmış olmalı"
-    assert peak_count <= 2, "Eşzamanlı indirme sayısı MAX_CONCURRENT_DOWNLOADS (2) sınırını aşmamalı"
+    assert peak_count <= 2, (
+        "Eşzamanlı indirme sayısı MAX_CONCURRENT_DOWNLOADS (2) sınırını aşmamalı"
+    )
 
 
 @patch("app.downloader.downloader.requests.get")
