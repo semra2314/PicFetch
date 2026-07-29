@@ -209,12 +209,15 @@ def test_count_above_max_is_rejected(monkeypatch):
 
 def test_summary_log_reports_all_threshold_passers(caplog, monkeypatch) -> None:
     import logging
+
     caplog.set_level(logging.INFO)
 
     count = 5
     fetch_count = int(count * config.OVERFETCH)  # 10
     candidates = make_candidates(fetch_count)
-    confidences = [0.9] * (fetch_count - 1)  # 9 adet resim indirilecek, hepsi eşiği geçecek
+    confidences = [0.9] * (
+        fetch_count - 1
+    )  # 9 adet resim indirilecek, hepsi eşiği geçecek
 
     mock_search = MagicMock()
     mock_search.return_value = candidates
@@ -223,8 +226,7 @@ def test_summary_log_reports_all_threshold_passers(caplog, monkeypatch) -> None:
     # 1 eksik resim indirilmesi durumu (huninin daralması)
     mock_download = MagicMock()
     mock_download.return_value = [
-        DownloadedImage(url=c.url, data=b"dummy_image_data")
-        for c in candidates[:-1]
+        DownloadedImage(url=c.url, data=b"dummy_image_data") for c in candidates[:-1]
     ]
     monkeypatch.setattr(pipeline, "download", mock_download)
 
