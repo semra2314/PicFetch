@@ -13,6 +13,8 @@ class DownloadedImage:
     data: bytes
     # aşağıya uygun dosya uzantısı vermezsem ne olur ? --- > her resmin sonuna .jpg yazar ama resim png ise görüntü bozulur veya açılmaz
     content_type: str = "image/jpeg"
+    content_hash: str | None = None
+    path: str | None = None
 
     @property
     def extension(self) -> str:
