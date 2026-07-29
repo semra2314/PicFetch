@@ -26,16 +26,15 @@ def run(keyword: str, count: int) -> PipelineResult:
         result = detect(image, keyword)
         results.append(result)
 
-    ranked = rank(results, config.DETECT_THRESHOLD, count)
+    passed = rank(results, config.DETECT_THRESHOLD, len(results))
+    ranked = passed[:count]
 
     logger.info(
-        "Aday: %d, İndirilen: %d, Eşiği geçen: %d",
+        "Aday: %d, İndirilen: %d, Eşiği geçen: %d, Dönen: %d",
         len(candidates),
         len(downloaded),
+        len(passed),
         len(ranked),
     )
-
-    if len(ranked) < count:
-        logger.info("Yetersiz sonuç: %d istendi, %d bulundu", count, len(ranked))
 
     return PipelineResult(images=ranked, requested=count, found=len(ranked))

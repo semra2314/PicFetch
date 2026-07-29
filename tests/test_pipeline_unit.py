@@ -205,3 +205,37 @@ def test_count_above_max_is_rejected(monkeypatch):
     # İstek limit aşımı nedeniyle reddedildiği için
     # arama fonksiyonunun HİÇ çağrılmadığını doğruluyoruz
     mock_search.assert_not_called()
+
+
+def test_summary_log_reports_all_threshold_passers(caplog, monkeypatch) -> None:
+    import logging
+    caplog.set_level(logging.INFO)
+
+    count = 5
+    fetch_count = int(count * config.OVERFETCH)  # 10
+    candidates = make_candidates(fetch_count)
+    confidences = [0.9] * (fetch_count - 1)  # 9 adet resim indirilecek, hepsi eşiği geçecek
+
+    mock_search = MagicMock()
+    mock_search.return_value = candidates
+    monkeypatch.setattr(pipeline, "search", mock_search)
+
+    # 1 eksik resim indirilmesi durumu (huninin daralması)
+    mock_download = MagicMock()
+    mock_download.return_value = [
+        DownloadedImage(url=c.url, data=b"dummy_image_data")
+        for c in candidates[:-1]
+    ]
+    monkeypatch.setattr(pipeline, "download", mock_download)
+
+    mock_detect = MagicMock()
+    mock_detect.side_effect = make_detect_side_effect(confidences)
+    monkeypatch.setattr(pipeline, "detect", mock_detect)
+
+    pipeline.run("kedi", count)
+
+    # Kararlı alt dizeleri kontrol ederek log doğruluğunu sına
+    assert "Aday: 10" in caplog.text
+    assert "İndirilen: 9" in caplog.text
+    assert "Eşiği geçen: 9" in caplog.text
+    assert "Dönen: 5" in caplog.text
