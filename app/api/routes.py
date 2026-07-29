@@ -30,7 +30,7 @@ def search(request: SearchRequest) -> SearchResponse:
     image_results = [
         ImageResult(
             source_url=img.url,
-            image_url=f"/static/{Path(img.path).relative_to(config.DOWNLOADS_DIR)}" if img.path else None,
+            image_url=f"/static/{Path(img.path).relative_to(config.DOWNLOADS_DIR).as_posix()}" if img.path else None,
         )
         for img in result.images
     ]
