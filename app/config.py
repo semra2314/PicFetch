@@ -44,9 +44,9 @@ SEARCH_RETRIES = 3
 #   hata durumunda toplam bekleme uzar. Azalırsa -> geçici hatalarda erken
 #   pes edilir, arama başarısız sayılır.
 
-SEARCH_RETRY_DELAY = 3
-# Ne işe yarar: Tekrar denemeler arasında beklenecek süre (sn).
-# Neden bu değer: Rate-limit'in genelde bu sürede sıfırlandığı gözlemlendi;
+SEARCH_RETRY_DELAY_MIN = 3
+SEARCH_RETRY_DELAY_MAX = 6
+# Ne işe yararlar: sabit gecikme yerine aralıktan rastgele seçiyoruz ki retry'ler zaman ekseninde birbirinden ayrılsın, hepsi aynı anda rate-limit penceresine çarpmasın. (sn).
 #   ayrıca servisi art arda yeniden bombalamamak için bir tampon sağlıyor.
 # Değişirse: Artarsa -> servise nazik davranılır ama toplam süre uzar.
 #   Azalırsa -> rate limit'e tekrar takılma riski artar.

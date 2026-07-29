@@ -1,8 +1,9 @@
 import time
+import random
 import logging
 from ddgs import DDGS
 from app.domain import Candidate
-from app.config import SEARCH_RETRIES, SEARCH_RETRY_DELAY
+from app import config
 
 logger = logging.getLogger(
     __name__
@@ -13,7 +14,11 @@ def search(keyword: str, count: int) -> list[Candidate]:
     """Verilen arama kelimesiyle DuckDuckGo üzerinden görsel araması yapar
     ve belirlenen sayıda Candidate nesnesi döndürür."""
 
-    for attempt in range(SEARCH_RETRIES):
+    # Config'de min > max olarak yanlış girilmişse bile sistemi çökertmeyip sessizce düzeltiyoruz
+    min_range = min(config.SEARCH_RETRY_DELAY_MIN, config.SEARCH_RETRY_DELAY_MAX)
+    max_range = max(config.SEARCH_RETRY_DELAY_MIN, config.SEARCH_RETRY_DELAY_MAX)
+
+    for attempt in range(config.SEARCH_RETRIES):
         candidates = []  # her deneme için temiz arama yap,diğer arama sonuçlarıyla karışmaması için
 
         try:
@@ -43,7 +48,8 @@ def search(keyword: str, count: int) -> list[Candidate]:
 
         except Exception:
             logger.exception(f"Search attempt {attempt + 1} failed")
-            time.sleep(SEARCH_RETRY_DELAY)
+            delay = random.randint(min_range, max_range)
+            time.sleep(delay)
             # bir sonraki deneme için
-            # configden gelen süre kadar bekler(backoff)
+            # configden gelen aralıktan gelen rastgele süre kadar bekler(backoff)
     return []  # tüm denemeler bitti, hiçbiri başarılı olmadı: boş dön

@@ -2,8 +2,8 @@
 
 from app.search.search import search
 from app.domain import Candidate
-from unittest.mock import patch
-from app.config import SEARCH_RETRIES
+from unittest.mock import patch, call  # swap testi call kullanıyor
+from app import config
 import logging
 
 # normal durum
@@ -50,7 +50,7 @@ def test_search_error(caplog):
             with caplog.at_level(logging.ERROR):
                 result = search("cat", 3)
             assert result == []
-            assert mock_ddgs.return_value.images.call_count == SEARCH_RETRIES
+            assert mock_ddgs.return_value.images.call_count == config.SEARCH_RETRIES
             assert "failed" in caplog.text
 
 
@@ -80,3 +80,17 @@ def test_search_skips_missing_key(caplog):  # eksik anahtar atlanmalı durumu
             result = search("cat", 3)
         assert len(result) == 2
         assert "atlandı" in caplog.text
+
+
+def test_search_swaps_when_min_greater_than_max(monkeypatch) -> None:
+    monkeypatch.setattr(config, "SEARCH_RETRY_DELAY_MIN", 5)
+    monkeypatch.setattr(config, "SEARCH_RETRY_DELAY_MAX", 2)
+    with (
+        patch("app.search.search.DDGS") as mock_ddgs,
+        patch("app.search.search.time.sleep"),
+        patch("app.search.search.random.randint") as mock_randint,
+    ):
+        mock_ddgs.return_value.images.side_effect = Exception("DDGS error")
+        result = search("araba", 3)
+        assert mock_randint.call_args_list == [call(2, 5)] * config.SEARCH_RETRIES
+        assert result == []
