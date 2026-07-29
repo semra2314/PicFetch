@@ -11,8 +11,10 @@ client = TestClient(app)
 
 def _mock_result(found: int = 1) -> PipelineResult:
     images = [
-        DownloadedImage(url=f"https://example.com/{i}.jpg",
-                        data=b"fake-image-bytes",)
+        DownloadedImage(
+            url=f"https://example.com/{i}.jpg",
+            data=b"fake-image-bytes",
+        )
         for i in range(found)
     ]
     return PipelineResult(images=images, requested=found, found=found)

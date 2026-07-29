@@ -18,11 +18,12 @@ def search(request: SearchRequest) -> SearchResponse:
     try:
         result = pipeline.run(request.keyword, request.count)
     except ValueError as e:
-        logger.warning("Geçersiz istek keyword=%s count=%s: %s", request.keyword, request.count, e)
+        logger.warning(
+            "Geçersiz istek keyword=%s count=%s: %s", request.keyword, request.count, e
+        )
         raise HTTPException(status_code=400, detail=str(e)) from None
     except Exception as e:
-        logger.exception(
-            "Pipeline hatası keyword=%s",request.keyword, exc_info=e)
+        logger.exception("Pipeline hatası keyword=%s", request.keyword, exc_info=e)
         raise HTTPException(500, detail="Beklenmeyen bir hata oluştu") from None
 
     image_results = [ImageResult(source_url=img.url) for img in result.images]
