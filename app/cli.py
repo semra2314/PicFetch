@@ -13,10 +13,8 @@ def main() -> None:
 
     print(f"{results.found} adet görsel bulundu")
 
-    for i, image in enumerate(results.images):
-        file_name = f"{args.keyword}_{i}{image.extension}"  # burayı jpg den image extension yaptım çünkü content type değişebilir(png,jpeg vb)
-        with open(file_name, "wb") as f:
-            f.write(image.data)
+    for image in results.images:
+        print(f"- {image.path}")
 
 
 if __name__ == "__main__":

@@ -1,6 +1,6 @@
 # app/pipeline.py
 import logging
-
+from app import storage
 from app.config import DETECT_THRESHOLD, MAX_COUNT, OVERFETCH
 from app.detector.detector import detect
 from app.domain import Candidate, DetectionResult, PipelineResult
@@ -31,8 +31,9 @@ def run(keyword: str, count: int) -> PipelineResult:
         result = detect(image, keyword)
         results.append(result)
     ranked = rank(results, DETECT_THRESHOLD, count)
+    saved_images = [storage.save_image(image) for image in ranked]
 
-    if len(ranked) < count:
-        logger.info("Yetersiz sonuç: %d istendi, %d bulundu", count, len(ranked))
+    if len(saved_images) < count:
+        logger.info("Yetersiz sonuç: %d istendi, %d bulundu", count, len(saved_images))
 
-    return PipelineResult(images=ranked, requested=count, found=len(ranked))
+    return PipelineResult(images=saved_images, requested=count, found=len(saved_images))

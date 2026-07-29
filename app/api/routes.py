@@ -2,6 +2,8 @@ from fastapi import APIRouter, HTTPException
 from app import pipeline
 from app.api.schemas import SearchRequest, SearchResponse, ImageResult
 import logging
+from pathlib import Path
+from app import config
 
 logger = logging.getLogger(__name__)
 
@@ -25,7 +27,13 @@ def search(request: SearchRequest) -> SearchResponse:
             "Pipeline hatası keyword=%s",request.keyword, exc_info=e)
         raise HTTPException(500, detail="Beklenmeyen bir hata oluştu") from None
 
-    image_results = [ImageResult(source_url=img.url) for img in result.images]
+    image_results = [
+        ImageResult(
+            source_url=img.url,
+            image_url=f"/static/{Path(img.path).relative_to(config.DOWNLOADS_DIR)}" if img.path else None,
+        )
+        for img in result.images
+    ]
     return SearchResponse(
         images=image_results, requested=result.requested, found=result.found
     )

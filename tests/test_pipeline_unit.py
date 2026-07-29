@@ -1,10 +1,11 @@
 # tests/test_pipeline_unit.py
+from dataclasses import replace
 from unittest.mock import MagicMock
 
 import pytest
 
-from app import pipeline
-from app.config import MAX_COUNT,OVERFETCH
+from app import pipeline, storage
+from app.config import MAX_COUNT, OVERFETCH
 from app.domain import Candidate, DetectionResult, DownloadedImage
 
 
@@ -36,6 +37,19 @@ def make_detect_side_effect(confidences: list[float]):
     return _detect
 
 
+def make_save_image_side_effect():
+    # Gerçek diske yazmadan, path ve content_hash sahte doldurulur.
+    def _save_image(image):
+        fake_hash = f"hash_{image.url}"
+        return replace(
+            image,
+            content_hash=fake_hash,
+            path=f"data/downloads/fake/{fake_hash}{image.extension}",
+        )
+
+    return _save_image
+
+
 def test_full_result(monkeypatch):
     count = 5
     fetch_count = int(count * OVERFETCH)
@@ -55,6 +69,10 @@ def test_full_result(monkeypatch):
     mock_detect = MagicMock()
     mock_detect.side_effect = make_detect_side_effect(confidences)
     monkeypatch.setattr(pipeline, "detect", mock_detect)
+
+    mock_save_image = MagicMock()
+    mock_save_image.side_effect = make_save_image_side_effect()
+    monkeypatch.setattr(storage, "save_image", mock_save_image)
 
     # Rank mock'lanmaz; gerçek eşik, sıralama ve limit mantığı çalışır.
     result = pipeline.run("kedi", count)
@@ -87,6 +105,10 @@ def test_partial_result(monkeypatch):
     mock_detect.side_effect = make_detect_side_effect(confidences)
     monkeypatch.setattr(pipeline, "detect", mock_detect)
 
+    mock_save_image = MagicMock()
+    mock_save_image.side_effect = make_save_image_side_effect()
+    monkeypatch.setattr(storage, "save_image", mock_save_image)
+
     result = pipeline.run("kedi", count)
 
     assert len(result.images) == passing_count
@@ -113,6 +135,7 @@ def test_empty_result(monkeypatch):
     mock_detect.side_effect = make_detect_side_effect(confidences)
     monkeypatch.setattr(pipeline, "detect", mock_detect)
 
+    # NOT: ranked boş döndüğü için save_image hiç çağrılmaz; mock'lamaya gerek yok.
     result = pipeline.run("kedi", count)
 
     assert result.images == []
@@ -138,6 +161,10 @@ def test_overfetch_call(monkeypatch):
     mock_detect.side_effect = make_detect_side_effect(confidences)
     monkeypatch.setattr(pipeline, "detect", mock_detect)
 
+    mock_save_image = MagicMock()
+    mock_save_image.side_effect = make_save_image_side_effect()
+    monkeypatch.setattr(storage, "save_image", mock_save_image)
+
     pipeline.run("kedi", count)
 
     # Search, kullanıcı sayısıyla değil overfetch uygulanmış sayıyla çağrılmalıdır.
@@ -153,6 +180,7 @@ def test_invalid_input(monkeypatch):
 
     # Geçersiz girdi, dış işlem başlamadan reddedilmelidir.
     mock_search.assert_not_called()
+
 
 def test_count_at_max_is_accepted(monkeypatch):
     # Test için kabul edilebilir maksimum istek sayısını belirliyoruz
@@ -173,6 +201,10 @@ def test_count_at_max_is_accepted(monkeypatch):
     mock_detect.side_effect = make_detect_side_effect(confidences)
     monkeypatch.setattr(pipeline, "detect", mock_detect)
 
+    mock_save_image = MagicMock()
+    mock_save_image.side_effect = make_save_image_side_effect()
+    monkeypatch.setattr(storage, "save_image", mock_save_image)
+
     result = pipeline.run("kedi", count)
 
     assert result.found == count
@@ -184,8 +216,7 @@ def test_count_above_max_is_rejected(monkeypatch):
 
     with pytest.raises(ValueError):
         pipeline.run("kedi", MAX_COUNT + 1)
-    
-    # İstek limit aşımı nedeniyle reddedildiği için 
-    # arama fonksiyonunun HİÇ çağrılmadığını doğruluyoruz
 
+    # İstek limit aşımı nedeniyle reddedildiği için
+    # arama fonksiyonunun HİÇ çağrılmadığını doğruluyoruz
     mock_search.assert_not_called()
