@@ -24,6 +24,9 @@ def main() -> None:
 
     try:
         results = run(args.keyword, args.count)
+    except Exception:
+        logger.exception("Pipeline çalıştırılırken hata oluştu.")
+        sys.exit(1)
 
     for i, image in enumerate(results.images):
         file_name = f"{args.keyword}_{i}{image.extension}"  # burayı jpg den image extension yaptım çünkü content type değişebilir(png,jpeg vb)
