@@ -25,25 +25,10 @@ def main() -> None:
     try:
         results = run(args.keyword, args.count)
 
-        for i, image in enumerate(results.images):
-            file_name = f"{args.keyword}_{i}{image.extension}"
-            with open(file_name, "wb") as f:
-                f.write(image.data)
-    except ValueError as e:
-        print(f"Girdi Hatası: {e}", file=sys.stderr)
-        sys.exit(2)
-    except Exception:
-        logger.exception(
-            "İşlem sırasında veya dosyalar kaydedilirken beklenmeyen bir hata oluştu."
-        )
-        print(
-            "Sistemde beklenmeyen bir hata oluştu. Lütfen logları kontrol edin.",
-            file=sys.stderr,
-        )
-        sys.exit(1)
-
-    for image in results.images:
-        print(f"- {image.path}")
+    for i, image in enumerate(results.images):
+        file_name = f"{args.keyword}_{i}{image.extension}"  # burayı jpg den image extension yaptım çünkü content type değişebilir(png,jpeg vb)
+        with open(file_name, "wb") as f:
+            f.write(image.data)
 
 
 if __name__ == "__main__":
