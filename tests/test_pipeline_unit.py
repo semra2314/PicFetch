@@ -17,13 +17,12 @@ def make_candidates(n: int) -> list[Candidate]:
 
 def make_download_side_effect() -> Callable[[list[Candidate]], list[DownloadedImage]]:
     def _download(candidates: list[Candidate]) -> list[DownloadedImage]:
-        candidate = candidates[0]
-
         return [
             DownloadedImage(
                 url=candidate.url,
                 data=f"dummy_image_data_{candidate.url}".encode(),
             )
+            for candidate in candidates
         ]
 
     return _download
