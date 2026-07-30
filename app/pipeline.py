@@ -19,20 +19,13 @@ def run(keyword: str, count: int) -> PipelineResult:
 
     fetch_count = int(count * config.OVERFETCH)
     candidates: list[Candidate] = search(keyword, fetch_count)
-    results: list[DetectionResult] = []
 
-    for candidate in candidates:
-        downloaded = download([candidate])
-        if not downloaded:
-            logger.warning(
-                "İndirme başarısız, atlanıyor: %s",
-                candidate.url,
-            )
-            continue
+    # Adaylar TOPLU verilir: download([candidate]) biçiminde tek tek çağırmak
+    # MAX_CONCURRENT_DOWNLOADS işçilik havuza her seferinde 1 iş düşürür ve
+    # eşzamanlılığın süre kazancı hiç görünmez (§5 pipeline sözleşmesi).
+    downloaded = download(candidates)
 
-        image = downloaded[0]
-        result = detect(image, keyword)
-        results.append(result)
+    results: list[DetectionResult] = [detect(image, keyword) for image in downloaded]
 
     ranked = rank(
         results,
@@ -40,14 +33,20 @@ def run(keyword: str, count: int) -> PipelineResult:
         count,
     )
 
-    saved_images = [storage.save_image(image) for image in ranked]
+    # Tek satır, KOŞULSUZ: eşiği gerçek sonuçlara bakarak ayarlamanın (Karar 5) ve
+    # "0 bulundu" teşhisinin (§6) dayanağı bu sayıların YAN YANA olması. Eşzamanlı
+    # isteklerde hangi satır hangi aramaya ait olduğu için keyword de basılır.
+    # Bilinen sınır: esigi_gecen, rank'in count'a kırpması yüzünden min(geçen, count).
+    logger.info(
+        "Arama özeti keyword=%r istenen=%d aday=%d inen=%d esigi_gecen=%d",
+        keyword,
+        count,
+        len(candidates),
+        len(downloaded),
+        len(ranked),
+    )
 
-    if len(saved_images) < count:
-        logger.info(
-            "Yetersiz sonuç: %d istendi, %d bulundu",
-            count,
-            len(saved_images),
-        )
+    saved_images = [storage.save_image(image) for image in ranked]
 
     return PipelineResult(
         images=saved_images,
