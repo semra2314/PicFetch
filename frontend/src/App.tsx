@@ -191,7 +191,7 @@ export default function App() {
                       setKeyword(event.target.value);
                       setFormError("");
                     }}
-                    placeholder="Örn. kedi, köpek, kırmızı araba"
+                    placeholder="Örn. kedi, köpek, araba"
                     autoComplete="off"
                     aria-invalid={Boolean(formError)}
                     aria-describedby={formError ? "form-error" : undefined}
@@ -306,9 +306,6 @@ export default function App() {
                   ["YOLOE-26 doğruluyor", "Nesne içerikleri kontrol ediliyor."],
                 ].map(([title, description]) => (
                   <div key={title} className="rounded-2xl border border-white/5 bg-black/20 p-5">
-                    <div className="mb-4 h-1.5 overflow-hidden rounded-full bg-white/5">
-                      <div className="h-full w-2/3 animate-pulse rounded-full bg-gradient-to-r from-purple-500 to-pink-500" />
-                    </div>
                     <h2 className="font-semibold text-white">{title}</h2>
                     <p className="mt-2 text-sm text-slate-400">{description}</p>
                   </div>
