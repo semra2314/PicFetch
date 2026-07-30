@@ -1,19 +1,19 @@
-import { useRef, useState } from "react"
-import type { FormEvent } from "react"
+import { useRef, useState } from "react";
+import type { FormEvent } from "react";
 
-import { SearchError, searchImages } from "./api"
-import { MAX_COUNT } from "./constants"
-import type { ApiImageResult } from "./types"
+import { SearchError, searchImages } from "./api";
+import { MAX_COUNT } from "./constants";
+import type { ApiImageResult } from "./types";
 
-type ViewState = "search" | "loading" | "results" | "empty" | "error"
+type ViewState = "search" | "loading" | "results" | "empty" | "error";
 
-const SUGGESTIONS = ["kedi", "köpek", "araba", "kuş"]
+const SUGGESTIONS = ["kedi", "köpek", "araba", "kuş"];
 
 function sourceLabel(url: string): string {
   try {
-    return new URL(url).hostname.replace(/^www\./, "")
+    return new URL(url).hostname.replace(/^www\./, "");
   } catch {
-    return "Kaynağı görüntüle"
+    return "Kaynağı görüntüle";
   }
 }
 
@@ -22,100 +22,94 @@ function sourceLabel(url: string): string {
 // React href içeriğini temizlemez, kontrolü burada yapıyoruz.
 function isSafeHttpUrl(url: string): boolean {
   try {
-    const { protocol } = new URL(url)
+    const { protocol } = new URL(url);
 
-    return protocol === "http:" || protocol === "https:"
+    return protocol === "http:" || protocol === "https:";
   } catch {
-    return false
+    return false;
   }
 }
 
 export default function App() {
-  const [view, setView] = useState<ViewState>("search")
-  const [keyword, setKeyword] = useState("")
-  const [count, setCount] = useState("10")
-  const [results, setResults] = useState<ApiImageResult[]>([])
-  const [requested, setRequested] = useState(0)
-  const [found, setFound] = useState(0)
-  const [formError, setFormError] = useState("")
-  const [requestError, setRequestError] = useState("")
-  const requestId = useRef(0)
+  const [view, setView] = useState<ViewState>("search");
+  const [keyword, setKeyword] = useState("");
+  const [count, setCount] = useState("10");
+  const [results, setResults] = useState<ApiImageResult[]>([]);
+  const [requested, setRequested] = useState(0);
+  const [found, setFound] = useState(0);
+  const [formError, setFormError] = useState("");
+  const [requestError, setRequestError] = useState("");
+  const requestId = useRef(0);
 
   async function runSearch(keywordOverride?: string) {
-    const normalizedKeyword = (keywordOverride ?? keyword).trim()
-    const normalizedCount = Number(count)
+    const normalizedKeyword = (keywordOverride ?? keyword).trim();
+    const normalizedCount = Number(count);
 
     if (!normalizedKeyword) {
-      setFormError("Lütfen aranacak nesneyi yazın.")
-      return
+      setFormError("Lütfen aranacak nesneyi yazın.");
+      return;
     }
 
-    if (
-      !Number.isInteger(normalizedCount) ||
-      normalizedCount < 1 ||
-      normalizedCount > MAX_COUNT
-    ) {
-      setFormError(
-        `Görsel sayısı 1–${MAX_COUNT} arasında bir tam sayı olmalıdır.`,
-      )
-      return
+    if (!Number.isInteger(normalizedCount) || normalizedCount < 1 || normalizedCount > MAX_COUNT) {
+      setFormError(`Görsel sayısı 1–${MAX_COUNT} arasında bir tam sayı olmalıdır.`);
+      return;
     }
 
-    setKeyword(normalizedKeyword)
+    setKeyword(normalizedKeyword);
     // İstenen sayıyı şimdiden yaz: bekleme ekranı ham metin state'i yerine
     // normalize edilmiş sayıyı göstersin ("007" değil "7").
-    setRequested(normalizedCount)
-    setFound(0)
-    setFormError("")
-    setRequestError("")
-    setView("loading")
+    setRequested(normalizedCount);
+    setFound(0);
+    setFormError("");
+    setRequestError("");
+    setView("loading");
 
     // Bu aramanın sıra numarası. Yanıt döndüğünde hâlâ en güncel arama
     // bu mu diye bakarız; değilse (kullanıcı formu sıfırladı ya da yeni
     // bir arama başlattı) geç gelen yanıtı sessizce yok sayarız.
-    const currentId = ++requestId.current
+    const currentId = ++requestId.current;
 
     try {
-      const response = await searchImages(normalizedKeyword, normalizedCount)
+      const response = await searchImages(normalizedKeyword, normalizedCount);
 
       if (requestId.current !== currentId) {
-        return
+        return;
       }
 
-      setResults(response.images)
-      setRequested(response.requested)
-      setFound(response.found)
-      setView(response.found === 0 ? "empty" : "results")
+      setResults(response.images);
+      setRequested(response.requested);
+      setFound(response.found);
+      setView(response.found === 0 ? "empty" : "results");
     } catch (error) {
       if (requestId.current !== currentId) {
-        return
+        return;
       }
 
       if (error instanceof SearchError) {
-        setRequestError(error.message)
+        setRequestError(error.message);
       } else {
-        setRequestError("Arama tamamlanamadı. Lütfen tekrar deneyin.")
+        setRequestError("Arama tamamlanamadı. Lütfen tekrar deneyin.");
       }
 
-      setView("error")
+      setView("error");
     }
   }
 
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault()
-    void runSearch()
+    event.preventDefault();
+    void runSearch();
   }
 
   function resetSearch() {
     // Uçuştaki isteği geçersiz kılar: geç dönerse ekranı ele geçiremez.
-    requestId.current += 1
+    requestId.current += 1;
 
-    setView("search")
-    setResults([])
-    setRequested(0)
-    setFound(0)
-    setFormError("")
-    setRequestError("")
+    setView("search");
+    setResults([]);
+    setRequested(0);
+    setFound(0);
+    setFormError("");
+    setRequestError("");
   }
 
   return (
@@ -128,11 +122,7 @@ export default function App() {
 
       <header className="relative z-10 border-b border-white/5 bg-black/10 backdrop-blur-xl">
         <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-5 sm:px-8">
-          <button
-            type="button"
-            onClick={resetSearch}
-            className="flex items-center gap-3"
-          >
+          <button type="button" onClick={resetSearch} className="flex items-center gap-3">
             <span className="flex h-9 w-9 items-center justify-center rounded-xl border border-purple-400/30 bg-purple-500/10 text-purple-300">
               ◇
             </span>
@@ -157,8 +147,7 @@ export default function App() {
         */}
         <p className="sr-only" role="status" aria-live="polite">
           {view === "loading" && "Arama sürüyor, lütfen bekleyin."}
-          {view === "results" &&
-            `Arama tamamlandı. ${requested} istendi, ${found} görsel bulundu.`}
+          {view === "results" && `Arama tamamlandı. ${requested} istendi, ${found} görsel bulundu.`}
           {view === "empty" && "Doğrulanmış görsel bulunamadı."}
           {view === "error" && requestError}
         </p>
@@ -180,9 +169,8 @@ export default function App() {
               </h1>
 
               <p className="mx-auto mt-6 max-w-2xl text-base leading-8 text-slate-400">
-                PicFetch web üzerinde görsel arar ve sonuçları YOLOE-26 ile
-                doğrular. Yalnızca aradığın nesneyi gerçekten içeren görseller
-                gösterilir.
+                PicFetch web üzerinde görsel arar ve sonuçları YOLOE-26 ile doğrular. Yalnızca
+                aradığın nesneyi gerçekten içeren görseller gösterilir.
               </p>
             </div>
 
@@ -200,8 +188,8 @@ export default function App() {
                     type="text"
                     value={keyword}
                     onChange={(event) => {
-                      setKeyword(event.target.value)
-                      setFormError("")
+                      setKeyword(event.target.value);
+                      setFormError("");
                     }}
                     placeholder="Örn. kedi, köpek, kırmızı araba"
                     autoComplete="off"
@@ -223,8 +211,8 @@ export default function App() {
                     step="1"
                     value={count}
                     onChange={(event) => {
-                      setCount(event.target.value)
-                      setFormError("")
+                      setCount(event.target.value);
+                      setFormError("");
                     }}
                     aria-invalid={Boolean(formError)}
                     aria-describedby={formError ? "form-error" : undefined}
@@ -258,8 +246,8 @@ export default function App() {
                     key={suggestion}
                     type="button"
                     onClick={() => {
-                      setKeyword(suggestion)
-                      void runSearch(suggestion)
+                      setKeyword(suggestion);
+                      void runSearch(suggestion);
                     }}
                     className="rounded-full border border-white/10 bg-white/5 px-3 py-1.5 text-xs text-slate-400 transition hover:border-purple-400/30 hover:text-purple-300"
                   >
@@ -279,9 +267,7 @@ export default function App() {
                   key={number}
                   className="rounded-2xl border border-white/5 bg-white/[0.025] p-5"
                 >
-                  <span className="text-xs font-bold text-purple-400">
-                    {number}
-                  </span>
+                  <span className="text-xs font-bold text-purple-400">{number}</span>
                   <h2 className="mt-2 font-semibold text-white">{title}</h2>
                   <p className="mt-1 text-sm text-slate-400">{description}</p>
                 </div>
@@ -302,8 +288,8 @@ export default function App() {
                     “{keyword}” görselleri doğrulanıyor
                   </h1>
                   <p className="mt-3 max-w-2xl leading-7 text-slate-400">
-                    {requested} görsel isteniyor. Arama, indirme ve model
-                    çıkarımı görseller üzerinde sırayla çalışır.
+                    {requested} görsel isteniyor. Arama, indirme ve model çıkarımı görseller
+                    üzerinde sırayla çalışır.
                   </p>
                 </div>
 
@@ -319,10 +305,7 @@ export default function App() {
                   ["Görseller hazırlanıyor", "Dosyalar indiriliyor."],
                   ["YOLOE-26 doğruluyor", "Nesne içerikleri kontrol ediliyor."],
                 ].map(([title, description]) => (
-                  <div
-                    key={title}
-                    className="rounded-2xl border border-white/5 bg-black/20 p-5"
-                  >
+                  <div key={title} className="rounded-2xl border border-white/5 bg-black/20 p-5">
                     <div className="mb-4 h-1.5 overflow-hidden rounded-full bg-white/5">
                       <div className="h-full w-2/3 animate-pulse rounded-full bg-gradient-to-r from-purple-500 to-pink-500" />
                     </div>
@@ -333,8 +316,8 @@ export default function App() {
               </div>
 
               <p className="mt-8 text-center text-sm leading-6 text-slate-400">
-                İstenen görsel sayısına ve bilgisayarın işlem gücüne göre bu
-                işlem birkaç dakika sürebilir. Sayfayı kapatmayın.
+                İstenen görsel sayısına ve bilgisayarın işlem gücüne göre bu işlem birkaç dakika
+                sürebilir. Sayfayı kapatmayın.
               </p>
             </div>
           </section>
@@ -347,9 +330,7 @@ export default function App() {
                 <p className="text-xs font-semibold uppercase tracking-[0.2em] text-emerald-400">
                   Doğrulama tamamlandı
                 </p>
-                <h1 className="mt-3 text-3xl font-bold text-white">
-                  “{keyword}” sonuçları
-                </h1>
+                <h1 className="mt-3 text-3xl font-bold text-white">“{keyword}” sonuçları</h1>
                 <p className="mt-2 text-slate-400">
                   {requested} istendi, {found} doğrulanmış görsel bulundu.
                 </p>
@@ -420,13 +401,11 @@ export default function App() {
                 ◇
               </div>
 
-              <h1 className="mt-6 text-2xl font-bold text-white">
-                Doğrulanmış görsel bulunamadı
-              </h1>
+              <h1 className="mt-6 text-2xl font-bold text-white">Doğrulanmış görsel bulunamadı</h1>
 
               <p className="mt-3 leading-7 text-slate-400">
-                “{keyword}” için bulunan adaylardan hiçbiri nesne doğrulamasını
-                geçemedi. Daha açık veya farklı bir kelime deneyebilirsin.
+                “{keyword}” için bulunan adaylardan hiçbiri nesne doğrulamasını geçemedi. Daha açık
+                veya farklı bir kelime deneyebilirsin.
               </p>
 
               <p className="mt-4 text-sm text-slate-400">
@@ -451,9 +430,7 @@ export default function App() {
                 !
               </span>
 
-              <h1 className="mt-6 text-2xl font-bold text-white">
-                Arama tamamlanamadı
-              </h1>
+              <h1 className="mt-6 text-2xl font-bold text-white">Arama tamamlanamadı</h1>
 
               <p role="alert" className="mt-3 leading-7 text-slate-400">
                 {requestError}
@@ -481,5 +458,5 @@ export default function App() {
         )}
       </main>
     </div>
-  )
+  );
 }

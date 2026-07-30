@@ -1,13 +1,10 @@
 export interface ApiImageResult {
-  image_url: string
-
-  source_url: string
+  image_url: string;
+  source_url: string;
 }
 
 export interface SearchResponse {
-  images: ApiImageResult[]
-
-  requested: number
-
-  found: number
+  images: ApiImageResult[];
+  requested: number;
+  found: number;
 }
