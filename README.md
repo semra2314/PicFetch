@@ -25,13 +25,32 @@ pip install -r requirements.txt
 source .venv/bin/activate
 ```
 
+**Frontend (web arayüzü):**
+
+Arayüz Vite + React ile derlenir; Python bağımlılıklarından ayrıdır.
+Node.js 22+ ve pnpm 9 gerektirir.
+
+```bash
+npm install -g pnpm@9      # pnpm kurulu değilse
+
+cd frontend
+pnpm install --frozen-lockfile
+pnpm build                  # frontend/dist üretir
+cd ..
+```
+
+`pnpm build` çalıştırılmazsa sunucu yine ayağa kalkar, ancak `/` adresi 503 döner ve
+logda "Frontend build bulunamadı" uyarısı görünür. API (`/search`, `/health`) build
+olmadan da çalışır.
+
 ## Çalıştırma
 
 **Web (FastAPI):**
 ```bash
 uvicorn app.main:app --reload
 ```
-Sonra `http://127.0.0.1:8000/health` adresinden sağlık kontrolü yapılabilir.
+- `http://127.0.0.1:8000/` — arayüz (önce `pnpm build` gerekir)
+- `http://127.0.0.1:8000/health` — sağlık kontrolü
 
 **CLI (terminal):**
 ```bash
@@ -47,4 +66,12 @@ Commit atmadan önce:
 ```bash
 ruff check .
 ruff format .
+```
+
+Frontend tarafında:
+```bash
+cd frontend
+pnpm typecheck              # tsc --noEmit
+pnpm exec oxfmt .           # biçimlendir
+pnpm exec oxfmt --check .   # sadece kontrol et
 ```

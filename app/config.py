@@ -86,6 +86,12 @@ DOWNLOADS_DIR = "data/downloads"
 #   göreli olduğu için farklı ortamlarda (dev/CI) tutarlı çalışır.
 # Değişirse: Testlerin geçici klasör (tmp_path) verebilmesi için config
 #   üzerinden okunmalı — koda gömülü olursa testler prod klasörüne yazar.
+# NOT: FRONTEND_DIST depo köküne sabitlenmiş durumda, bu yol ise hâlâ
+# çalışma dizinine göreli. Sunucu repo kökü dışından başlatılırsa arayüz
+# açılır ama görseller 404 döner. Kısmi çalışan bu durum, her şeyin
+# birden bozulmasından daha zor teşhis edilir — ayrı bir kartta
+# PROJECT_ROOT ile mutlaklaştırılmalı.
+
 
 MODEL_NAME = "yoloe-26m-seg.pt"
 # Ne işe yarar: Nesne tespiti için kullanılan model dosyasının adı.
