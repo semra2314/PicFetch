@@ -1,3 +1,9 @@
+from pathlib import Path
+
+PROJECT_ROOT = Path(__file__).resolve().parent.parent
+# Depo kökü (app/ klasörünün bir üstü). Yol ayarları buna göre kurulur ki
+# sunucu hangi çalışma dizininden başlatılırsa başlatılsın aynı yeri bulsun.
+
 # --- Arama / getirme ---
 
 OVERFETCH = 2
@@ -96,3 +102,13 @@ MAX_COUNT = 50
 #   100 çıkarım). Bu yüzden MAX_COUNT, OVERFETCH ve MAX_FILE_SIZE birbiriyle
 #   bağlantılı — biri değiştiğinde diğer ikisi de gözden geçirilmeli
 #   (toplam indirme hacmi ve disk/bellek etkisini birlikte değerlendirin).
+
+# --- Frontend (web arayüzü) ---
+
+FRONTEND_DIST = PROJECT_ROOT / "frontend" / "dist"
+# Vite ile derlenen (build edilen) web dosyalarının bulunduğu klasör.
+# Sunucu (main.py), siteyi ziyaret edenlere dosyaları buradan sunar.
+# ÖNEMLİ: Vite ayarlarında çıktı klasörünü (dist) başka bir isimle
+# değiştirirseniz, buradaki yolu da ona göre güncellemeniz gerekir.
+# Depo köküne sabitlenmiştir: uvicorn başka bir dizinden başlatılsa bile
+# arayüz bulunur.
