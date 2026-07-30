@@ -30,13 +30,22 @@ app.mount(
 
 # Vite tarafından üretilen CSS ve JavaScript dosyaları ayrı bir
 # isim alanında tutulur; /static ile çakışmaz.
-if frontend_assets.is_dir():
-    app.mount(
-        "/assets",
-        StaticFiles(directory=frontend_assets),
-        name="assets",
-    )
-else:
+#
+# Mount koşulsuz kurulur. Koşullu olsaydı en sık karşılaşılan sıra
+# bozulurdu: sunucu çalışırken 'pnpm build' alındığında / adresi 200
+# döner (yol her istekte okunuyor) ama CSS/JS 404 verir ve kullanıcı
+# hiçbir hata mesajı olmayan bir beyaz sayfa görür. --reload de
+# tetiklenmez, çünkü değişen dosyalar Python değil.
+#
+# check_dir=False: klasör henüz yokken StaticFiles'ın açılışta hata
+# vermesini engeller. Dosya bulunamadığında normal 404 döner.
+app.mount(
+    "/assets",
+    StaticFiles(directory=frontend_assets, check_dir=False),
+    name="assets",
+)
+
+if not frontend_assets.is_dir():
     logger.warning(
         "Frontend build bulunamadı: %s. "
         "Arayüz için 'cd frontend && pnpm build' çalıştırın.",
@@ -49,8 +58,6 @@ def frontend() -> FileResponse:
     # index.html yolu modül yüklenirken değil, her istekte config'den okunur.
     # Sebebi: testler config.FRONTEND_DIST'i geçici bir dizine yönlendirip
     # hem "build var" (200) hem "build yok" (503) durumunu doğrulayabilsin.
-    # Modül seviyesinde sabitlenseydi monkeypatch işe yaramaz, testin
-    # modülü importlib ile yeniden yüklemesi gerekirdi.
     frontend_index = Path(config.FRONTEND_DIST) / "index.html"
 
     if not frontend_index.is_file():

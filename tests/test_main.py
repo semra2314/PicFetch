@@ -61,3 +61,16 @@ def test_static_mount_exists() -> None:
     mount_paths = {route.path for route in app.routes if isinstance(route, Mount)}
 
     assert "/static" in mount_paths
+
+
+def test_assets_mount_exists_regardless_of_build() -> None:
+    """Build olmasa bile /assets mount'u kurulmuş olmalı.
+
+    Koşullu mount edilseydi, sunucu çalışırken build alındığında /
+    200 döner ama CSS/JS 404 verirdi; kullanıcı hatasız bir beyaz
+    sayfa görürdü. Mount koşulsuz olduğu için bu test ortamdan
+    bağımsız olarak deterministik.
+    """
+    mount_paths = {route.path for route in app.routes if isinstance(route, Mount)}
+
+    assert "/assets" in mount_paths
