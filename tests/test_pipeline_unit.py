@@ -1,4 +1,5 @@
 # tests/test_pipeline_unit.py
+import logging
 from collections.abc import Callable
 from dataclasses import replace
 from hashlib import sha256
@@ -6,8 +7,7 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from app import pipeline, storage
-from app.config import MAX_COUNT, OVERFETCH
+from app import config, pipeline, storage
 from app.domain import Candidate, DetectionResult, DownloadedImage
 
 
@@ -70,7 +70,7 @@ def test_full_result(
     mock_save_image: MagicMock,
 ) -> None:
     count = 5
-    fetch_count = int(count * OVERFETCH)
+    fetch_count = int(count * config.OVERFETCH)
     candidates = make_candidates(fetch_count)
     confidences = [0.9] * fetch_count
 
@@ -95,12 +95,77 @@ def test_full_result(
     assert mock_save_image.call_count == count
 
 
+def test_download_called_once_with_all_candidates(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Kartın kalbi: adaylar tek tek değil, TOPLU liste olarak download'a gider."""
+    count = 5
+    fetch_count = int(count * config.OVERFETCH)
+    candidates = make_candidates(fetch_count)
+    confidences = [0.9] * fetch_count
+
+    mock_search = MagicMock(return_value=candidates)
+    monkeypatch.setattr(pipeline, "search", mock_search)
+
+    mock_download = MagicMock(side_effect=make_download_side_effect())
+    monkeypatch.setattr(pipeline, "download", mock_download)
+
+    mock_detect = MagicMock(side_effect=make_detect_side_effect(confidences))
+    monkeypatch.setattr(pipeline, "detect", mock_detect)
+
+    pipeline.run("kedi", count)
+
+    assert mock_download.call_count == 1
+    mock_download.assert_called_once_with(candidates)
+    assert mock_detect.call_count == fetch_count
+
+
+def test_run_logs_single_summary_line(
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Özet log: tek satır, her aramada, keyword + dört sayı (§5 / Karar 5)."""
+    count = 5
+    fetch_count = int(count * config.OVERFETCH)
+    candidates = make_candidates(fetch_count)
+
+    passing_count = 2
+    confidences = [0.9, 0.6] + [0.1] * (fetch_count - passing_count)
+
+    mock_search = MagicMock(return_value=candidates)
+    monkeypatch.setattr(pipeline, "search", mock_search)
+
+    mock_download = MagicMock(side_effect=make_download_side_effect())
+    monkeypatch.setattr(pipeline, "download", mock_download)
+
+    mock_detect = MagicMock(side_effect=make_detect_side_effect(confidences))
+    monkeypatch.setattr(pipeline, "detect", mock_detect)
+
+    with caplog.at_level(logging.INFO, logger=pipeline.logger.name):
+        pipeline.run("kedi", count)
+
+    records = [
+        record for record in caplog.records if record.name == pipeline.logger.name
+    ]
+
+    assert len(records) == 1
+    assert records[0].levelno == logging.INFO
+
+    message = records[0].getMessage()
+
+    assert "kedi" in message
+    assert f"istenen={count}" in message
+    assert f"aday={fetch_count}" in message
+    assert f"inen={fetch_count}" in message
+    assert f"esigi_gecen={passing_count}" in message
+
+
 def test_partial_result(
     monkeypatch: pytest.MonkeyPatch,
     mock_save_image: MagicMock,
 ) -> None:
     count = 5
-    fetch_count = int(count * OVERFETCH)
+    fetch_count = int(count * config.OVERFETCH)
     candidates = make_candidates(fetch_count)
 
     passing_count = 2
@@ -135,7 +200,7 @@ def test_empty_result(
     mock_save_image: MagicMock,
 ) -> None:
     count = 5
-    fetch_count = int(count * OVERFETCH)
+    fetch_count = int(count * config.OVERFETCH)
     candidates = make_candidates(fetch_count)
     confidences = [0.1] * fetch_count
 
@@ -161,7 +226,7 @@ def test_duplicate_hashes_remain_in_results(
     mock_save_image: MagicMock,
 ) -> None:
     count = 2
-    fetch_count = int(count * OVERFETCH)
+    fetch_count = int(count * config.OVERFETCH)
     candidates = make_candidates(fetch_count)
     confidences = [0.9, 0.8] + [0.1] * (fetch_count - 2)
 
@@ -198,7 +263,7 @@ def test_duplicate_hashes_remain_in_results(
 
 def test_overfetch_call(monkeypatch: pytest.MonkeyPatch) -> None:
     count = 5
-    fetch_count = int(count * OVERFETCH)
+    fetch_count = int(count * config.OVERFETCH)
     candidates = make_candidates(fetch_count)
     confidences = [0.9] * fetch_count
 
@@ -229,8 +294,8 @@ def test_invalid_input(monkeypatch: pytest.MonkeyPatch) -> None:
 def test_count_at_max_is_accepted(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    count = MAX_COUNT
-    fetch_count = int(count * OVERFETCH)
+    count = config.MAX_COUNT
+    fetch_count = int(count * config.OVERFETCH)
     candidates = make_candidates(fetch_count)
     confidences = [0.9] * fetch_count
 
@@ -255,6 +320,6 @@ def test_count_above_max_is_rejected(
     monkeypatch.setattr(pipeline, "search", mock_search)
 
     with pytest.raises(ValueError):
-        pipeline.run("kedi", MAX_COUNT + 1)
+        pipeline.run("kedi", config.MAX_COUNT + 1)
 
     mock_search.assert_not_called()
