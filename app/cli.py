@@ -1,15 +1,17 @@
 import argparse
-import sys
 import logging
+import sys
+
+from app import config
 from app.logging_setup import setup_logging
 from app.pipeline import run
-from app import config
 
 logger = logging.getLogger("app.cli")
 
 
 def main() -> None:
     setup_logging()
+
     parser = argparse.ArgumentParser()
     parser.add_argument("keyword", type=str)
     parser.add_argument("--count", type=int, default=10)
@@ -25,17 +27,17 @@ def main() -> None:
     try:
         results = run(args.keyword, args.count)
 
-        for i, image in enumerate(results.images):
-            file_name = f"{args.keyword}_{i}{image.extension}"
-            with open(file_name, "wb") as f:
-                f.write(image.data)
-    except ValueError as e:
-        print(f"Girdi Hatası: {e}", file=sys.stderr)
+        for image in results.images:
+            if image.path is None:
+                raise RuntimeError("Kaydedilen görselin dosya yolu bulunamadı.")
+
+            print(f"Kaydedildi: {image.path}")
+
+    except ValueError as error:
+        print(f"Girdi Hatası: {error}", file=sys.stderr)
         sys.exit(2)
     except Exception:
-        logger.exception(
-            "İşlem sırasında veya dosyalar kaydedilirken beklenmeyen bir hata oluştu."
-        )
+        logger.exception("İşlem sırasında beklenmeyen bir hata oluştu.")
         print(
             "Sistemde beklenmeyen bir hata oluştu. Lütfen logları kontrol edin.",
             file=sys.stderr,

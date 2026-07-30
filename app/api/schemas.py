@@ -1,4 +1,5 @@
 from pydantic import BaseModel, Field, field_validator
+
 from app import config
 
 
@@ -25,10 +26,8 @@ class SearchRequest(BaseModel):
 
 
 class ImageResult(BaseModel):
-    image_url: str | None = (
-        None  # storage tamamlanana kadar boş kalacak, çünkü onu dolduracak veriyi o kart üretecek.
-    )
-    source_url: str  # görselin çekildiği orijinal sayfanın linki
+    image_url: str
+    source_url: str  # Görselin doğrudan kaynak URL'si.
 
 
 class SearchResponse(BaseModel):
