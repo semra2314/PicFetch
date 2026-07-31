@@ -40,8 +40,11 @@ async def add_static_headers(
     response = await call_next(request)
     path = request.url.path
     if path == "/static" or path.startswith("/static/"):
-        response.headers["Cache-Control"] = "public, max-age=31536000, immutable"
         response.headers["X-Content-Type-Options"] = "nosniff"
+        if response.status_code in {200, 206, 304}:
+            response.headers["Cache-Control"] = "public, max-age=31536000, immutable"
+        elif response.status_code >= 400:
+            response.headers["Cache-Control"] = "no-store"
     return response
 
 

@@ -89,18 +89,59 @@ def test_static_response_has_immutable_cache_headers(
     (tmp_path / "image.jpg").write_bytes(b"image-bytes")
 
     response = client.get("/static/image.jpg")
+    range_response = client.get(
+        "/static/image.jpg",
+        headers={"Range": "bytes=0-4"},
+    )
+    not_modified_response = client.get(
+        "/static/image.jpg",
+        headers={"If-None-Match": response.headers["etag"]},
+    )
 
     assert response.status_code == 200
-    assert response.headers["cache-control"] == ("public, max-age=31536000, immutable")
+    assert range_response.status_code == 206
+    assert range_response.content == b"image"
+    assert range_response.headers["content-range"] == "bytes 0-4/11"
+    assert not_modified_response.status_code == 304
+
+    for static_response in (response, range_response, not_modified_response):
+        assert static_response.headers["cache-control"] == (
+            "public, max-age=31536000, immutable"
+        )
+        assert static_response.headers["x-content-type-options"] == "nosniff"
+
+
+def test_missing_static_response_is_not_cached(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    static_mount = next(
+        route
+        for route in app.routes
+        if isinstance(route, Mount) and route.path == "/static"
+    )
+    assert isinstance(static_mount.app, StaticFiles)
+    monkeypatch.setattr(static_mount, "app", StaticFiles(directory=tmp_path))
+
+    response = client.get("/static/missing.jpg")
+
+    assert response.status_code == 404
+    assert response.headers["cache-control"] == "no-store"
+    assert "immutable" not in response.headers["cache-control"]
     assert response.headers["x-content-type-options"] == "nosniff"
 
 
 def test_api_response_does_not_have_static_cache_headers() -> None:
-    response = client.get("/health")
+    responses = (
+        (client.get("/health"), 200),
+        (client.post("/search", json={"keyword": "", "count": 1}), 422),
+        (client.get("/staticity"), 404),
+    )
 
-    assert response.status_code == 200
-    assert "immutable" not in response.headers.get("cache-control", "")
-    assert "x-content-type-options" not in response.headers
+    for response, expected_status in responses:
+        assert response.status_code == expected_status
+        assert "immutable" not in response.headers.get("cache-control", "")
+        assert "x-content-type-options" not in response.headers
 
 
 def test_assets_mount_exists_regardless_of_build() -> None:
