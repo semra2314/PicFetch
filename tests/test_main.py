@@ -75,6 +75,34 @@ def test_static_mount_exists() -> None:
     assert "/static" in mount_paths
 
 
+def test_static_response_has_immutable_cache_headers(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    static_mount = next(
+        route
+        for route in app.routes
+        if isinstance(route, Mount) and route.path == "/static"
+    )
+    assert isinstance(static_mount.app, StaticFiles)
+    monkeypatch.setattr(static_mount, "app", StaticFiles(directory=tmp_path))
+    (tmp_path / "image.jpg").write_bytes(b"image-bytes")
+
+    response = client.get("/static/image.jpg")
+
+    assert response.status_code == 200
+    assert response.headers["cache-control"] == ("public, max-age=31536000, immutable")
+    assert response.headers["x-content-type-options"] == "nosniff"
+
+
+def test_api_response_does_not_have_static_cache_headers() -> None:
+    response = client.get("/health")
+
+    assert response.status_code == 200
+    assert "immutable" not in response.headers.get("cache-control", "")
+    assert "x-content-type-options" not in response.headers
+
+
 def test_assets_mount_exists_regardless_of_build() -> None:
     """Build olmasa bile /assets mount'u kurulmuş olmalı.
 
