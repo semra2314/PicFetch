@@ -1,9 +1,10 @@
 # app/pipeline.py
 import logging
+from hashlib import sha256
 
 from app import config, storage
 from app.detector.detector import detect
-from app.domain import Candidate, DetectionResult, PipelineResult
+from app.domain import Candidate, DetectionResult, DownloadedImage, PipelineResult
 from app.downloader.downloader import download
 from app.ranking.ranking import rank
 from app.search.search import search
@@ -25,7 +26,18 @@ def run(keyword: str, count: int) -> PipelineResult:
     # eşzamanlılığın süre kazancı hiç görünmez (§5 pipeline sözleşmesi).
     downloaded = download(candidates)
 
-    results: list[DetectionResult] = [detect(image, keyword) for image in downloaded]
+    seen_hashes: set[bytes] = set()
+    unique_downloaded: list[DownloadedImage] = []
+    for image in downloaded:
+        content_hash = sha256(image.data).digest()
+        if content_hash in seen_hashes:
+            continue
+        seen_hashes.add(content_hash)
+        unique_downloaded.append(image)
+
+    results: list[DetectionResult] = [
+        detect(image, keyword) for image in unique_downloaded
+    ]
 
     ranked = rank(
         results,
@@ -38,11 +50,12 @@ def run(keyword: str, count: int) -> PipelineResult:
     # isteklerde hangi satır hangi aramaya ait olduğu için keyword de basılır.
     # Bilinen sınır: esigi_gecen, rank'in count'a kırpması yüzünden min(geçen, count).
     logger.info(
-        "Arama özeti keyword=%r istenen=%d aday=%d inen=%d esigi_gecen=%d",
+        "Arama özeti keyword=%r istenen=%d aday=%d inen=%d tekil=%d esigi_gecen=%d",
         keyword,
         count,
         len(candidates),
         len(downloaded),
+        len(unique_downloaded),
         len(ranked),
     )
 
