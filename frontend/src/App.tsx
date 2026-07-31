@@ -7,7 +7,7 @@ import type { ApiImageResult } from "./types";
 
 type ViewState = "search" | "loading" | "results" | "empty" | "error";
 
-const SUGGESTIONS = ["kedi", "köpek", "araba", "kuş"];
+const SUGGESTIONS = ["cat", "dog", "car", "bird"];
 
 function sourceLabel(url: string): string {
   try {
@@ -192,7 +192,7 @@ export default function App() {
                       setKeyword(event.target.value);
                       setFormError("");
                     }}
-                    placeholder="Örn. kedi, köpek, araba"
+                    placeholder="Örn. cat, dog, car"
                     autoComplete="off"
                     aria-invalid={Boolean(formError)}
                     aria-describedby={formError ? "form-error" : undefined}
@@ -228,6 +228,10 @@ export default function App() {
                   Ara ve doğrula
                 </button>
               </div>
+
+              <p className="mt-3 text-xs text-slate-400">
+                Şu an yalnızca İngilizce kelimeler destekleniyor.
+              </p>
 
               {formError && (
                 <p
