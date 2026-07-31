@@ -14,6 +14,18 @@ from app import (
 logger = logging.getLogger(__name__)
 # config: Timeout ve retry gibi ayarları tek bir yerden (config.py) okumak için.
 
+_ALLOWED_IMAGE_CONTENT_TYPES = frozenset(
+    {
+        "image/jpeg",
+        "image/jpg",
+        "image/png",
+        "image/webp",
+        "image/gif",
+        "image/bmp",
+        "image/tiff",
+    }
+)
+
 
 def _download_single(candidate: Candidate) -> DownloadedImage | None:
     """Tek bir URL'yi indirir. Başarısızsa None döndürür."""
@@ -36,7 +48,8 @@ def _download_single(candidate: Candidate) -> DownloadedImage | None:
 
                 # 2. Kontrol: Gerçekten görsel mi?
                 content_type = response.headers.get("Content-Type", "")
-                if not content_type.lower().startswith("image/"):
+                clean_content_type = content_type.split(";", 1)[0].strip().lower()
+                if clean_content_type not in _ALLOWED_IMAGE_CONTENT_TYPES:
                     logger.warning(
                         f"URL görsel değil: {candidate.url} - İçerik tipi: {content_type} (Durum kodu: {response.status_code})"
                     )

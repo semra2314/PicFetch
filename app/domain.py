@@ -29,7 +29,6 @@ class DownloadedImage:
             "image/webp": ".webp",
             "image/gif": ".gif",
             "image/bmp": ".bmp",
-            "image/svg+xml": ".svg",
             "image/tiff": ".tiff",
         }
         return mapping.get(clean_type, ".jpg")

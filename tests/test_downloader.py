@@ -91,6 +91,39 @@ def test_download_rejects_html(mock_get):
     assert mock_get.call_count == 1, "HTML reddinde tekrar deneme yapılmamalı"
 
 
+@patch("app.downloader.downloader.requests.get")
+def test_download_accepts_normalized_allowed_content_type(mock_get):
+    fake_response = Mock()
+    fake_response.status_code = 200
+    fake_response.headers = {"Content-Type": " IMAGE/PNG ; charset=utf-8 "}
+    fake_response.iter_content = Mock(return_value=[b"png data"])
+    mock_get.return_value = fake_response
+
+    results = download([Candidate(url="http://sahte-site.com/resim")])
+
+    assert len(results) == 1
+    assert results[0].content_type == " IMAGE/PNG ; charset=utf-8 "
+    assert results[0].extension == ".png"
+
+
+@patch("app.downloader.downloader.requests.get")
+def test_download_rejects_svg_and_logs_content_type(mock_get, caplog):
+    fake_response = Mock()
+    fake_response.status_code = 200
+    fake_response.headers = {"Content-Type": "image/svg+xml; charset=utf-8"}
+    fake_response.iter_content = Mock()
+    mock_get.return_value = fake_response
+    url = "http://sahte-site.com/resim.svg"
+
+    results = download([Candidate(url=url)])
+
+    assert results == []
+    mock_get.assert_called_once()
+    fake_response.iter_content.assert_not_called()
+    assert url in caplog.text
+    assert "image/svg+xml" in caplog.text
+
+
 # Başlıkta (Content-Length) belirtilen boyutun MAX_FILE_SIZE limitini aşması durumunda görselin reddedildiğini test eder.
 @patch(
     "app.downloader.downloader.config.DOWNLOAD_RETRIES", 2
@@ -299,3 +332,6 @@ def test_downloaded_image_extension_mapping():
         url="u3", data=b"", content_type="application/octet-stream"
     )
     assert img_unknown.extension == ".jpg"
+
+    img_svg = DownloadedImage(url="u4", data=b"", content_type="image/svg+xml")
+    assert img_svg.extension == ".jpg"
