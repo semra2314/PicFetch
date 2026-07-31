@@ -125,12 +125,12 @@ def test_run_logs_single_summary_line(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
     """Özet log: tek satır, her aramada, keyword + dört sayı (§5 / Karar 5)."""
-    count = 5
+    count = 2
     fetch_count = int(count * config.OVERFETCH)
     candidates = make_candidates(fetch_count)
 
-    passing_count = 2
-    confidences = [0.9, 0.6] + [0.1] * (fetch_count - passing_count)
+    passing_count = 3
+    confidences = [0.9, 0.6, 0.4] + [0.1] * (fetch_count - passing_count)
 
     mock_search = MagicMock(return_value=candidates)
     monkeypatch.setattr(pipeline, "search", mock_search)

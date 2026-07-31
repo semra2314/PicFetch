@@ -1,6 +1,12 @@
 from app.domain import DownloadedImage, DetectionResult
 
 
+def count_at_or_above_threshold(
+    results: list[DetectionResult], threshold: float
+) -> int:
+    return sum(result.confidence >= threshold for result in results)
+
+
 def rank(
     results: list[DetectionResult], threshold: float, limit: int
 ) -> list[DownloadedImage]:

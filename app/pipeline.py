@@ -6,7 +6,7 @@ from app import config, storage
 from app.detector.detector import detect
 from app.domain import Candidate, DetectionResult, DownloadedImage, PipelineResult
 from app.downloader.downloader import download
-from app.ranking.ranking import rank
+from app.ranking.ranking import count_at_or_above_threshold, rank
 from app.search.search import search
 
 logger = logging.getLogger(__name__)
@@ -38,6 +38,10 @@ def run(keyword: str, count: int) -> PipelineResult:
     results: list[DetectionResult] = [
         detect(image, keyword) for image in unique_downloaded
     ]
+    raw_threshold_count = count_at_or_above_threshold(
+        results,
+        config.DETECT_THRESHOLD,
+    )
 
     ranked = rank(
         results,
@@ -48,7 +52,6 @@ def run(keyword: str, count: int) -> PipelineResult:
     # Tek satır, KOŞULSUZ: eşiği gerçek sonuçlara bakarak ayarlamanın (Karar 5) ve
     # "0 bulundu" teşhisinin (§6) dayanağı bu sayıların YAN YANA olması. Eşzamanlı
     # isteklerde hangi satır hangi aramaya ait olduğu için keyword de basılır.
-    # Bilinen sınır: esigi_gecen, rank'in count'a kırpması yüzünden min(geçen, count).
     logger.info(
         "Arama özeti keyword=%r istenen=%d aday=%d inen=%d tekil=%d esigi_gecen=%d",
         keyword,
@@ -56,7 +59,7 @@ def run(keyword: str, count: int) -> PipelineResult:
         len(candidates),
         len(downloaded),
         len(unique_downloaded),
-        len(ranked),
+        raw_threshold_count,
     )
 
     saved_images = [storage.save_image(image) for image in ranked]
