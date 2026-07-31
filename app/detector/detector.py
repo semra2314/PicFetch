@@ -2,7 +2,9 @@
 
 import logging
 import threading
+from collections import OrderedDict
 from io import BytesIO
+from typing import Any
 
 from PIL import Image, UnidentifiedImageError
 from ultralytics import YOLOE
@@ -14,7 +16,10 @@ from app.domain import DownloadedImage, DetectionResult
 logger = logging.getLogger(__name__)
 
 _model: YOLOE | None = None
-_model_lock = threading.Lock()
+_model_lock = threading.RLock()
+_TEXT_EMBEDDING_CACHE_SIZE = 128
+_text_embedding_cache: OrderedDict[str, Any] = OrderedDict()
+_embedding_cache_model: YOLOE | None = None
 
 
 def _get_or_load_model() -> YOLOE:
@@ -28,22 +33,43 @@ def _get_or_load_model() -> YOLOE:
     return _model
 
 
+def _get_text_embedding_locked(model: YOLOE, keyword: str) -> Any:
+    """Return the keyword embedding while ``_model_lock`` is held."""
+    global _embedding_cache_model
+
+    if _embedding_cache_model is not model:
+        _text_embedding_cache.clear()
+        _embedding_cache_model = model
+
+    try:
+        embedding = _text_embedding_cache.pop(keyword)
+    except KeyError:
+        embedding = model.get_text_pe([keyword])
+        _text_embedding_cache[keyword] = embedding
+        if len(_text_embedding_cache) > _TEXT_EMBEDDING_CACHE_SIZE:
+            _text_embedding_cache.popitem(last=False)
+    else:
+        _text_embedding_cache[keyword] = embedding
+
+    return embedding
+
+
 def detect(image: DownloadedImage, keyword: str) -> DetectionResult:
     try:
         pil_img = Image.open(BytesIO(image.data))
         # PIL'in tembel decode işlemini burada tamamlamasını zorla.
         pil_img.load()
-    except (UnidentifiedImageError, OSError) as e:
+    except (Image.DecompressionBombError, UnidentifiedImageError, OSError) as e:
         logger.warning("Görsel decode edilemedi: %s", e)
         return DetectionResult(image=image, confidence=0.0)
 
-    # Yüklemeyi kilitli inference bloğuna almak deadlock oluşturabilir.
-    model = _get_or_load_model()
-
-    # Keyword ayarı ve inference aynı model durumu üzerinde birlikte çalışmalı.
+    # Lazy model yükleme, embedding cache'i, keyword ayarı ve inference aynı
+    # model durumu üzerinde birlikte çalışmalı.
     with _model_lock:
+        model = _get_or_load_model()
         names = [keyword]
-        model.set_classes(names, model.get_text_pe(names))
+        embedding = _get_text_embedding_locked(model, keyword)
+        model.set_classes(names, embedding)
         results = model(pil_img, verbose=False)
 
     # Ultralytics'in geniş dönüş tipini çalışma zamanında doğrula.
@@ -66,3 +92,19 @@ def detect(image: DownloadedImage, keyword: str) -> DetectionResult:
         max_conf = float(conf.max())
 
     return DetectionResult(image=image, confidence=max_conf)
+
+
+def warm_up() -> None:
+    """Load the model, text encoder, and inference path before serving requests."""
+    buffer = BytesIO()
+    with Image.new("RGB", (32, 32), color="white") as warmup_image:
+        warmup_image.save(buffer, format="PNG")
+
+    image = DownloadedImage(
+        url="internal://warm-up.png",
+        data=buffer.getvalue(),
+        content_type="image/png",
+    )
+    logger.info("Model ısıtılıyor...")
+    detect(image, "object")
+    logger.info("Model ısıtma tamamlandı.")

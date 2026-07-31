@@ -125,12 +125,12 @@ def test_run_logs_single_summary_line(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
     """Özet log: tek satır, her aramada, keyword + dört sayı (§5 / Karar 5)."""
-    count = 5
+    count = 2
     fetch_count = int(count * config.OVERFETCH)
     candidates = make_candidates(fetch_count)
 
-    passing_count = 2
-    confidences = [0.9, 0.6] + [0.1] * (fetch_count - passing_count)
+    passing_count = 3
+    confidences = [0.9, 0.6, 0.4] + [0.1] * (fetch_count - passing_count)
 
     mock_search = MagicMock(return_value=candidates)
     monkeypatch.setattr(pipeline, "search", mock_search)
@@ -157,6 +157,7 @@ def test_run_logs_single_summary_line(
     assert f"istenen={count}" in message
     assert f"aday={fetch_count}" in message
     assert f"inen={fetch_count}" in message
+    assert f"tekil={fetch_count}" in message
     assert f"esigi_gecen={passing_count}" in message
 
 
@@ -221,43 +222,49 @@ def test_empty_result(
     mock_save_image.assert_not_called()
 
 
-def test_duplicate_hashes_remain_in_results(
+def test_duplicate_content_is_detected_and_returned_once(
     monkeypatch: pytest.MonkeyPatch,
     mock_save_image: MagicMock,
 ) -> None:
-    count = 2
+    count = 3
     fetch_count = int(count * config.OVERFETCH)
     candidates = make_candidates(fetch_count)
-    confidences = [0.9, 0.8] + [0.1] * (fetch_count - 2)
 
     mock_search = MagicMock(return_value=candidates)
     monkeypatch.setattr(pipeline, "search", mock_search)
 
-    mock_download = MagicMock(side_effect=make_download_side_effect())
+    first = DownloadedImage(
+        url=candidates[0].url,
+        data=b"duplicate image data",
+        content_type="image/jpeg",
+    )
+    unique = DownloadedImage(
+        url=candidates[1].url,
+        data=b"unique image data",
+        content_type="image/jpeg",
+    )
+    duplicate = DownloadedImage(
+        url=candidates[2].url,
+        data=first.data,
+        content_type="image/png",
+    )
+    mock_download = MagicMock(return_value=[first, unique, duplicate])
     monkeypatch.setattr(pipeline, "download", mock_download)
 
-    mock_detect = MagicMock(side_effect=make_detect_side_effect(confidences))
+    mock_detect = MagicMock(side_effect=make_detect_side_effect([0.9, 0.8]))
     monkeypatch.setattr(pipeline, "detect", mock_detect)
-
-    duplicate_hash = "a" * 64
-    duplicate_path = f"data/downloads/aa/{duplicate_hash}.jpg"
-
-    def _save_with_duplicate_hash(
-        image: DownloadedImage,
-    ) -> DownloadedImage:
-        return replace(
-            image,
-            content_hash=duplicate_hash,
-            path=duplicate_path,
-        )
-
-    mock_save_image.side_effect = _save_with_duplicate_hash
 
     result = pipeline.run("kedi", count)
 
+    detected_images = [
+        detect_call.args[0] for detect_call in mock_detect.call_args_list
+    ]
+    assert detected_images == [first, unique]
+    assert mock_detect.call_count == 2
     assert len(result.images) == 2
     assert result.found == 2
-    assert all(image.content_hash == duplicate_hash for image in result.images)
+    assert result.found == len(result.images)
+    assert [image.url for image in result.images] == [first.url, unique.url]
     assert mock_save_image.call_count == 2
 
 

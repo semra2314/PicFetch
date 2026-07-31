@@ -31,7 +31,9 @@ typing-inspection==0.4.2
 typing_extensions==4.16.0
 uvicorn==0.51.0
 requests==2.32.3
-pillow>=10.4.0
-ultralytics>=8.2.0
+pillow==12.3.0
+ultralytics==8.4.96
+torch==2.13.0
+torchvision==0.28.0
 mypy==2.3.0
 types-requests==2.33.0.20260712

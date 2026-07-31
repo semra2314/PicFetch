@@ -1,5 +1,4 @@
-import { MAX_COUNT } from "./constants";
-import type { SearchResponse } from "./types";
+import type { HealthResponse, SearchResponse } from "./types";
 
 export type SearchErrorKind = "validation" | "server" | "network" | "unexpected";
 
@@ -13,6 +12,48 @@ export class SearchError extends Error {
   }
 }
 
+export function isAbortError(error: unknown): boolean {
+  return error instanceof DOMException && error.name === "AbortError";
+}
+
+function isHealthResponse(value: unknown): value is HealthResponse {
+  if (typeof value !== "object" || value === null) {
+    return false;
+  }
+
+  const response = value as Partial<HealthResponse>;
+
+  return (
+    response.status === "ok" &&
+    Number.isInteger(response.max_count) &&
+    Number(response.max_count) > 0
+  );
+}
+
+async function requestHealth(): Promise<HealthResponse> {
+  const response = await fetch("/health");
+
+  if (!response.ok) {
+    throw new Error("Health isteği başarısız oldu.");
+  }
+
+  const body: unknown = await response.json();
+
+  if (!isHealthResponse(body)) {
+    throw new Error("Health yanıtı geçersiz.");
+  }
+
+  return body;
+}
+
+let healthRequest: Promise<HealthResponse> | null = null;
+
+export function getHealth(): Promise<HealthResponse> {
+  healthRequest ??= requestHealth();
+
+  return healthRequest;
+}
+
 // Sunucunun gönderdiği açıklamayı (FastAPI'nin "detail" alanı) okumaya
 // çalışır. Gövde boşsa veya JSON değilse sessizce boş döner; çağıran
 // taraf o zaman genel bir mesaja düşer.
@@ -21,12 +62,21 @@ async function readDetail(response: Response): Promise<string> {
     const body = await response.json();
 
     return typeof body?.detail === "string" ? body.detail : "";
-  } catch {
+  } catch (error) {
+    if (isAbortError(error)) {
+      throw error;
+    }
+
     return "";
   }
 }
 
-export async function searchImages(keyword: string, count: number): Promise<SearchResponse> {
+export async function searchImages(
+  keyword: string,
+  count: number,
+  signal: AbortSignal,
+  maxCount: number,
+): Promise<SearchResponse> {
   let response: Response;
 
   try {
@@ -36,8 +86,13 @@ export async function searchImages(keyword: string, count: number): Promise<Sear
         "Content-Type": "application/json",
       },
       body: JSON.stringify({ keyword, count }),
+      signal,
     });
-  } catch {
+  } catch (error) {
+    if (isAbortError(error)) {
+      throw error;
+    }
+
     throw new SearchError(
       "network",
       "Sunucuya ulaşılamadı. Bağlantınızı kontrol edip tekrar deneyin.",
@@ -58,7 +113,7 @@ export async function searchImages(keyword: string, count: number): Promise<Sear
   if (response.status === 422) {
     throw new SearchError(
       "validation",
-      `Arama kelimesini ve 1–${MAX_COUNT} arasındaki görsel sayısını kontrol edin.`,
+      `Arama kelimesini ve 1–${maxCount} arasındaki görsel sayısını kontrol edin.`,
     );
   }
 
@@ -75,7 +130,11 @@ export async function searchImages(keyword: string, count: number): Promise<Sear
 
   try {
     return (await response.json()) as SearchResponse;
-  } catch {
+  } catch (error) {
+    if (isAbortError(error)) {
+      throw error;
+    }
+
     throw new SearchError("unexpected", "Sunucunun yanıtı okunamadı.");
   }
 }

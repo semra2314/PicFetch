@@ -1,13 +1,20 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { FormEvent } from "react";
 
-import { SearchError, searchImages } from "./api";
-import { MAX_COUNT } from "./constants";
+import { getHealth, isAbortError, SearchError, searchImages } from "./api";
+import { FALLBACK_MAX_COUNT } from "./constants";
 import type { ApiImageResult } from "./types";
 
 type ViewState = "search" | "loading" | "results" | "empty" | "error";
 
-const SUGGESTIONS = ["kedi", "köpek", "araba", "kuş"];
+const SUGGESTIONS = ["cat", "dog", "car", "bird"];
+
+function formatElapsed(seconds: number): string {
+  const minutes = Math.floor(seconds / 60);
+  const remainingSeconds = seconds % 60;
+
+  return `${minutes}:${String(remainingSeconds).padStart(2, "0")}`;
+}
 
 function sourceLabel(url: string): string {
   try {
@@ -30,6 +37,78 @@ function isSafeHttpUrl(url: string): boolean {
   }
 }
 
+interface ResultCardProps {
+  image: ApiImageResult;
+  index: number;
+  keyword: string;
+}
+
+function ResultCard({ image, index, keyword }: ResultCardProps) {
+  const [imageFailed, setImageFailed] = useState(false);
+
+  return (
+    <article className="group overflow-hidden rounded-2xl border border-white/10 bg-white/[0.045] shadow-xl shadow-black/20 transition duration-300 hover:-translate-y-1 hover:border-purple-400/30">
+      <div className="relative aspect-[4/3] overflow-hidden bg-black/30">
+        {imageFailed ? (
+          <div
+            role="img"
+            aria-label="Görsel yüklenemedi"
+            className="flex h-full w-full items-center justify-center px-6 text-center text-sm font-medium text-slate-400"
+          >
+            Görsel yüklenemedi
+          </div>
+        ) : (
+          <>
+            <img
+              src={image.image_url}
+              alt={`${keyword} doğrulanmış sonucu ${index + 1}`}
+              loading="lazy"
+              onError={() => setImageFailed(true)}
+              className="h-full w-full object-cover transition duration-500 group-hover:scale-105"
+            />
+
+            <span className="absolute right-3 top-3 rounded-full border border-emerald-300/20 bg-emerald-950/80 px-3 py-1.5 text-xs font-semibold text-emerald-300 backdrop-blur">
+              ✓ Doğrulandı
+            </span>
+          </>
+        )}
+      </div>
+
+      <div className="p-4">
+        {isSafeHttpUrl(image.source_url) ? (
+          <a
+            href={image.source_url}
+            target="_blank"
+            rel="noreferrer"
+            className="block truncate text-sm text-slate-400 transition hover:text-purple-300"
+          >
+            {sourceLabel(image.source_url)} ↗
+          </a>
+        ) : (
+          <span className="block truncate text-sm text-slate-400">Kaynak bağlantısı geçersiz</span>
+        )}
+
+        {imageFailed ? (
+          <span
+            aria-disabled="true"
+            className="mt-4 flex h-10 cursor-not-allowed items-center justify-center rounded-xl border border-white/10 bg-white/[0.025] text-sm font-semibold text-slate-500"
+          >
+            Görsel indirilemiyor
+          </span>
+        ) : (
+          <a
+            href={image.image_url}
+            download
+            className="mt-4 flex h-10 items-center justify-center rounded-xl border border-purple-400/25 bg-purple-500/10 text-sm font-semibold text-purple-300 transition hover:bg-purple-500/20"
+          >
+            Görseli indir
+          </a>
+        )}
+      </div>
+    </article>
+  );
+}
+
 export default function App() {
   const [view, setView] = useState<ViewState>("search");
   const [keyword, setKeyword] = useState("");
@@ -39,7 +118,58 @@ export default function App() {
   const [found, setFound] = useState(0);
   const [formError, setFormError] = useState("");
   const [requestError, setRequestError] = useState("");
+  const [elapsedSeconds, setElapsedSeconds] = useState(0);
+  const [maxCount, setMaxCount] = useState(FALLBACK_MAX_COUNT);
   const requestId = useRef(0);
+  const searchStartedAt = useRef<number | null>(null);
+  const activeController = useRef<AbortController | null>(null);
+
+  useEffect(() => {
+    if (view !== "loading") {
+      return;
+    }
+
+    function updateElapsed() {
+      const startedAt = searchStartedAt.current;
+
+      if (startedAt === null) {
+        return;
+      }
+
+      setElapsedSeconds(Math.max(0, Math.floor((Date.now() - startedAt) / 1000)));
+    }
+
+    updateElapsed();
+    const intervalId = window.setInterval(updateElapsed, 1000);
+
+    return () => window.clearInterval(intervalId);
+  }, [view]);
+
+  useEffect(() => {
+    let active = true;
+
+    void getHealth()
+      .then((response) => {
+        if (active) {
+          setMaxCount(response.max_count);
+        }
+      })
+      .catch(() => {
+        // Başlangıç state'i yedek değerdir; health hatasında onu koru.
+      });
+
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      requestId.current += 1;
+      activeController.current?.abort();
+      activeController.current = null;
+    };
+  }, []);
 
   async function runSearch(keywordOverride?: string) {
     const normalizedKeyword = (keywordOverride ?? keyword).trim();
@@ -50,10 +180,15 @@ export default function App() {
       return;
     }
 
-    if (!Number.isInteger(normalizedCount) || normalizedCount < 1 || normalizedCount > MAX_COUNT) {
-      setFormError(`Görsel sayısı 1–${MAX_COUNT} arasında bir tam sayı olmalıdır.`);
+    if (!Number.isInteger(normalizedCount) || normalizedCount < 1 || normalizedCount > maxCount) {
+      setFormError(`Görsel sayısı 1–${maxCount} arasında bir tam sayı olmalıdır.`);
       return;
     }
+
+    activeController.current?.abort();
+    const controller = new AbortController();
+    activeController.current = controller;
+    const currentId = ++requestId.current;
 
     setKeyword(normalizedKeyword);
     // İstenen sayıyı şimdiden yaz: bekleme ekranı ham metin state'i yerine
@@ -62,17 +197,19 @@ export default function App() {
     setFound(0);
     setFormError("");
     setRequestError("");
+    searchStartedAt.current = Date.now();
+    setElapsedSeconds(0);
     setView("loading");
 
-    // Bu aramanın sıra numarası. Yanıt döndüğünde hâlâ en güncel arama
-    // bu mu diye bakarız; değilse (kullanıcı formu sıfırladı ya da yeni
-    // bir arama başlattı) geç gelen yanıtı sessizce yok sayarız.
-    const currentId = ++requestId.current;
-
     try {
-      const response = await searchImages(normalizedKeyword, normalizedCount);
+      const response = await searchImages(
+        normalizedKeyword,
+        normalizedCount,
+        controller.signal,
+        maxCount,
+      );
 
-      if (requestId.current !== currentId) {
+      if (requestId.current !== currentId || controller.signal.aborted) {
         return;
       }
 
@@ -81,7 +218,7 @@ export default function App() {
       setFound(response.found);
       setView(response.found === 0 ? "empty" : "results");
     } catch (error) {
-      if (requestId.current !== currentId) {
+      if (requestId.current !== currentId || controller.signal.aborted || isAbortError(error)) {
         return;
       }
 
@@ -92,6 +229,10 @@ export default function App() {
       }
 
       setView("error");
+    } finally {
+      if (activeController.current === controller) {
+        activeController.current = null;
+      }
     }
   }
 
@@ -103,6 +244,8 @@ export default function App() {
   function resetSearch() {
     // Uçuştaki isteği geçersiz kılar: geç dönerse ekranı ele geçiremez.
     requestId.current += 1;
+    activeController.current?.abort();
+    activeController.current = null;
 
     setView("search");
     setResults([]);
@@ -186,12 +329,13 @@ export default function App() {
 
                   <input
                     type="text"
+                    maxLength={100}
                     value={keyword}
                     onChange={(event) => {
                       setKeyword(event.target.value);
                       setFormError("");
                     }}
-                    placeholder="Örn. kedi, köpek, araba"
+                    placeholder="Örn. cat, dog, car"
                     autoComplete="off"
                     aria-invalid={Boolean(formError)}
                     aria-describedby={formError ? "form-error" : undefined}
@@ -207,7 +351,7 @@ export default function App() {
                   <input
                     type="number"
                     min="1"
-                    max={MAX_COUNT}
+                    max={maxCount}
                     step="1"
                     value={count}
                     onChange={(event) => {
@@ -227,6 +371,10 @@ export default function App() {
                   Ara ve doğrula
                 </button>
               </div>
+
+              <p className="mt-3 text-xs text-slate-400">
+                Şu an yalnızca İngilizce kelimeler destekleniyor.
+              </p>
 
               {formError && (
                 <p
@@ -295,7 +443,10 @@ export default function App() {
 
                 <div className="flex items-center gap-3 rounded-xl border border-white/10 bg-black/20 px-4 py-3">
                   <span className="h-3 w-3 animate-pulse rounded-full bg-purple-400 shadow-[0_0_18px_rgba(192,132,252,0.9)]" />
-                  <span className="text-sm text-slate-300">Çalışıyor</span>
+                  <span className="text-sm text-slate-300">
+                    Çalışıyor ·{" "}
+                    <span className="tabular-nums">{formatElapsed(elapsedSeconds)}</span> geçti
+                  </span>
                 </div>
               </div>
 
@@ -313,9 +464,18 @@ export default function App() {
               </div>
 
               <p className="mt-8 text-center text-sm leading-6 text-slate-400">
-                İstenen görsel sayısına ve bilgisayarın işlem gücüne göre bu işlem birkaç dakika
-                sürebilir. Sayfayı kapatmayın.
+                Arama tamamlandığında sonuçlar otomatik olarak gösterilir.
               </p>
+
+              <div className="mt-5 text-center">
+                <button
+                  type="button"
+                  onClick={resetSearch}
+                  className="rounded-xl border border-white/10 bg-white/5 px-5 py-3 text-sm font-semibold text-slate-300 transition hover:bg-white/10 hover:text-white"
+                >
+                  Vazgeç
+                </button>
+              </div>
             </div>
           </section>
         )}
@@ -344,48 +504,12 @@ export default function App() {
 
             <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
               {results.map((image, index) => (
-                <article
+                <ResultCard
                   key={`${image.image_url}-${index}`}
-                  className="group overflow-hidden rounded-2xl border border-white/10 bg-white/[0.045] shadow-xl shadow-black/20 transition duration-300 hover:-translate-y-1 hover:border-purple-400/30"
-                >
-                  <div className="relative aspect-[4/3] overflow-hidden bg-black/30">
-                    <img
-                      src={image.image_url}
-                      alt={`${keyword} doğrulanmış sonucu ${index + 1}`}
-                      loading="lazy"
-                      className="h-full w-full object-cover transition duration-500 group-hover:scale-105"
-                    />
-
-                    <span className="absolute right-3 top-3 rounded-full border border-emerald-300/20 bg-emerald-950/80 px-3 py-1.5 text-xs font-semibold text-emerald-300 backdrop-blur">
-                      ✓ Doğrulandı
-                    </span>
-                  </div>
-
-                  <div className="p-4">
-                    {isSafeHttpUrl(image.source_url) ? (
-                      <a
-                        href={image.source_url}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="block truncate text-sm text-slate-400 transition hover:text-purple-300"
-                      >
-                        {sourceLabel(image.source_url)} ↗
-                      </a>
-                    ) : (
-                      <span className="block truncate text-sm text-slate-400">
-                        Kaynak bağlantısı geçersiz
-                      </span>
-                    )}
-
-                    <a
-                      href={image.image_url}
-                      download
-                      className="mt-4 flex h-10 items-center justify-center rounded-xl border border-purple-400/25 bg-purple-500/10 text-sm font-semibold text-purple-300 transition hover:bg-purple-500/20"
-                    >
-                      Görseli indir
-                    </a>
-                  </div>
-                </article>
+                  image={image}
+                  index={index}
+                  keyword={keyword}
+                />
               ))}
             </div>
           </section>

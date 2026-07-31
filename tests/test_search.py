@@ -2,7 +2,7 @@
 
 from app.search.search import search
 from app.domain import Candidate
-from unittest.mock import patch, call  # swap testi call kullanıyor
+from unittest.mock import call, patch  # swap testi call kullanıyor
 from app import config
 import logging
 
@@ -19,7 +19,7 @@ def test_search_normal():
         # gerçek DDGS servisini mock ile değiştirerek
         # dış bağımlılığı kaldırıyoruz
 
-        mock_ddgs.return_value.images.return_value = [
+        mock_ddgs.return_value.__enter__.return_value.images.return_value = [
             {"image": "http://ornek.com/1.jpg"},
             {"image": "http://ornek.com/2.jpg"},
             {"image": "http://ornek.com/3.jpg"},
@@ -36,7 +36,7 @@ def test_search_normal():
 
 def test_search_empty(caplog):
     with patch("app.search.search.DDGS") as mock_ddgs:
-        mock_ddgs.return_value.images.return_value = []
+        mock_ddgs.return_value.__enter__.return_value.images.return_value = []
         with caplog.at_level(logging.WARNING):
             result = search("cat", 3)
         assert result == []  # dönen değer  boş liste mi diye kontrol eder
@@ -45,33 +45,37 @@ def test_search_empty(caplog):
 
 def test_search_error(caplog):
     with patch("app.search.search.DDGS") as mock_ddgs:
-        with patch("app.search.search.time.sleep"):
-            mock_ddgs.return_value.images.side_effect = Exception("ağ hatası")
+        with patch("app.search.search.time.sleep") as mock_sleep:
+            mock_images = mock_ddgs.return_value.__enter__.return_value.images
+            mock_images.side_effect = Exception("ağ hatası")
             with caplog.at_level(logging.ERROR):
                 result = search("cat", 3)
             assert result == []
-            assert mock_ddgs.return_value.images.call_count == config.SEARCH_RETRIES
+            assert mock_images.call_count == config.SEARCH_RETRIES
+            assert mock_sleep.call_count == config.SEARCH_RETRIES - 1
             assert "failed" in caplog.text
 
 
 def test_search_recovers():
     with patch("app.search.search.DDGS") as mock_ddgs:
-        with patch("app.search.search.time.sleep"):
-            mock_ddgs.return_value.images.side_effect = [
+        with patch("app.search.search.time.sleep") as mock_sleep:
+            mock_images = mock_ddgs.return_value.__enter__.return_value.images
+            mock_images.side_effect = [
                 Exception("ağ hatası"),  # 1. deneme patlar
                 [{"image": "http://ornek.com/1.jpg"}],  # 2. deneme başarılı
             ]
             result = search("cat", 3)
             assert len(result) == 1
             assert result[0].url == "http://ornek.com/1.jpg"
+            mock_sleep.assert_called_once()
             assert (
-                mock_ddgs.return_value.images.call_count == 2
+                mock_images.call_count == 2
             )  # call_count 2 kez denendi mi (1 patlama + 1 başarı)
 
 
 def test_search_skips_missing_key(caplog):  # eksik anahtar atlanmalı durumu
     with patch("app.search.search.DDGS") as mock_ddgs:
-        mock_ddgs.return_value.images.return_value = [
+        mock_ddgs.return_value.__enter__.return_value.images.return_value = [
             {"image": "http://ornek.com/1.jpg"},
             {},  # eksik anahtar atlandı
             {"image": "http://ornek.com/2.jpg"},
@@ -87,10 +91,32 @@ def test_search_swaps_when_min_greater_than_max(monkeypatch) -> None:
     monkeypatch.setattr(config, "SEARCH_RETRY_DELAY_MAX", 2)
     with (
         patch("app.search.search.DDGS") as mock_ddgs,
-        patch("app.search.search.time.sleep"),
+        patch("app.search.search.time.sleep") as mock_sleep,
         patch("app.search.search.random.randint") as mock_randint,
     ):
-        mock_ddgs.return_value.images.side_effect = Exception("DDGS error")
+        mock_ddgs.return_value.__enter__.return_value.images.side_effect = Exception(
+            "DDGS error"
+        )
         result = search("araba", 3)
-        assert mock_randint.call_args_list == [call(2, 5)] * config.SEARCH_RETRIES
+        assert mock_randint.call_args_list == [call(2, 5)] * (config.SEARCH_RETRIES - 1)
+        assert mock_sleep.call_count == config.SEARCH_RETRIES - 1
         assert result == []
+
+
+def test_search_does_not_retry_parsing_errors() -> None:
+    with (
+        patch("app.search.search.DDGS") as mock_ddgs,
+        patch("app.search.search.time.sleep") as mock_sleep,
+    ):
+        mock_images = mock_ddgs.return_value.__enter__.return_value.images
+        mock_images.return_value = [None]
+
+        try:
+            search("cat", 3)
+        except AttributeError:
+            pass
+        else:
+            raise AssertionError("Ayrıştırma hatası çağırana iletilmeliydi")
+
+        mock_images.assert_called_once_with(query="cat", max_results=3)
+        mock_sleep.assert_not_called()

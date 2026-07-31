@@ -39,11 +39,20 @@ DOWNLOAD_RETRIES = 2
 # Değişirse: Artarsa -> geçici hatalara karşı dayanıklılık artar ama toplam
 #   süre uzar. Azalırsa (0) -> geçici hatalarda bile görsel tamamen kaybolur.
 
+DOWNLOAD_RETRY_DELAY_MIN = 1
+DOWNLOAD_RETRY_DELAY_MAX = 2
+# Ne işe yararlar: Yalnızca gerçekten yapılacak indirme retry'ları arasında
+#   rastgele beklenecek alt/üst süreyi belirler (sn). Search gecikmesinden daha
+#   kısadır; indirme retry'ları çok daha sık çalışır.
+# Değişirse: Artarsa -> sunuculara daha nazik davranılır ama toplu indirme
+#   süresi uzar. Azalırsa -> geçici hata aynı anda yeniden tetiklenebilir.
+
 # --- Kaynak arama servisi ---
 
 SEARCH_RETRIES = 3
-# Ne işe yarar: Arama servisi (ör. rate limit/5xx) hata verirse kaç kez
-#   tekrar denenecek.
+# Ne işe yarar: Arama servisi (ör. rate limit/5xx) hata verirse toplam kaç
+#   deneme yapılacak. DOWNLOAD_RETRIES ise ilk denemeden sonraki ek deneme
+#   sayısıdır; iki ayarın semantiği bilinçli olarak farklıdır.
 # Neden bu değer: Servisin geçici hatalarının çoğu birkaç denemede geçiyor;
 #   deneyimsel olarak 3 yeterli bulundu.
 # Değişirse: Artarsa -> geçici servis kesintilerine dayanıklılık artar ama
@@ -80,17 +89,13 @@ NON_RETRYABLE_STATUS_CODES = [
 
 # --- Depolama ---
 
-DOWNLOADS_DIR = "data/downloads"
+DOWNLOADS_DIR = PROJECT_ROOT / "data" / "downloads"
 # Ne işe yarar: İndirilen görsellerin yazılacağı kök klasör.
-# Neden bu değer: Karar 7'de belirlenen standart yol; proje kökünden
-#   göreli olduğu için farklı ortamlarda (dev/CI) tutarlı çalışır.
+# Neden bu değer: Karar 7'de belirlenen standart yol; depo köküne
+#   sabitlendiği için uygulama hangi çalışma dizininden başlatılırsa
+#   başlatılsın aynı klasörü kullanır.
 # Değişirse: Testlerin geçici klasör (tmp_path) verebilmesi için config
 #   üzerinden okunmalı — koda gömülü olursa testler prod klasörüne yazar.
-# NOT: FRONTEND_DIST depo köküne sabitlenmiş durumda, bu yol ise hâlâ
-# çalışma dizinine göreli. Sunucu repo kökü dışından başlatılırsa arayüz
-# açılır ama görseller 404 döner. Kısmi çalışan bu durum, her şeyin
-# birden bozulmasından daha zor teşhis edilir — ayrı bir kartta
-# PROJECT_ROOT ile mutlaklaştırılmalı.
 
 
 MODEL_NAME = "yoloe-26m-seg.pt"

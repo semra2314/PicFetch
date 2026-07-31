@@ -3,11 +3,17 @@ from pydantic import BaseModel, Field, field_validator
 from app import config
 
 
+class HealthResponse(BaseModel):
+    status: str
+    max_count: int = Field(gt=0)
+
+
 class SearchRequest(BaseModel):
     """Kullanıcıdan gelen aramaları karşılayan ve doğrulayan model."""
 
     keyword: str = Field(
-        min_length=1
+        min_length=1,
+        max_length=100,
     )  # karakter uzunluğunun en az 1 olmasını zorunlu kılar
     count: int = Field(ge=1, le=config.MAX_COUNT)  # count için alt ve üst sınır
 

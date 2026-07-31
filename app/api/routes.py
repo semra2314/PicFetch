@@ -4,7 +4,7 @@ from pathlib import Path
 from fastapi import APIRouter, HTTPException
 
 from app import config, pipeline
-from app.api.schemas import ImageResult, SearchRequest, SearchResponse
+from app.api.schemas import HealthResponse, ImageResult, SearchRequest, SearchResponse
 
 logger = logging.getLogger(__name__)
 
@@ -29,8 +29,8 @@ def _to_static_url(image_path: str | None) -> str:
 
 
 @router.get("/health")
-def health() -> dict[str, str]:
-    return {"status": "ok"}
+def health() -> HealthResponse:
+    return HealthResponse(status="ok", max_count=config.MAX_COUNT)
 
 
 @router.post("/search")

@@ -1,12 +1,16 @@
 import logging
+from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
 from pathlib import Path
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request, Response
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
+from starlette.middleware.base import RequestResponseEndpoint
 
 from app import config
 from app.api.routes import router
+from app.detector.detector import warm_up
 from app.logging_setup import setup_logging
 
 setup_logging()
@@ -18,7 +22,32 @@ downloads_dir.mkdir(parents=True, exist_ok=True)
 frontend_dist = Path(config.FRONTEND_DIST)
 frontend_assets = frontend_dist / "assets"
 
-app = FastAPI()
+
+@asynccontextmanager
+async def lifespan(_: FastAPI) -> AsyncIterator[None]:
+    warm_up()
+    yield
+
+
+app = FastAPI(lifespan=lifespan)
+
+
+@app.middleware("http")
+async def add_static_headers(
+    request: Request,
+    call_next: RequestResponseEndpoint,
+) -> Response:
+    response = await call_next(request)
+    path = request.url.path
+    if path == "/static" or path.startswith("/static/"):
+        response.headers["X-Content-Type-Options"] = "nosniff"
+        if response.status_code in {200, 206, 304}:
+            response.headers["Cache-Control"] = "public, max-age=31536000, immutable"
+        elif response.status_code >= 400:
+            response.headers["Cache-Control"] = "no-store"
+    return response
+
+
 app.include_router(router)
 
 # İndirilen ve doğrulanan görseller yalnızca /static altında sunulur.

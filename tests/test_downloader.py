@@ -3,10 +3,10 @@
 import requests
 
 # unittest.mock kütüphanesinden patch (fonksiyonu taklit etmek için) ve Mock (sahte nesne üretmek için) modüllerini içe aktarıyoruz.
-from unittest.mock import patch, Mock
+from unittest.mock import Mock, call, patch
 
 # Test edeceğimiz download fonksiyonunu ve test girdisi olarak kullanacağımız Candidate sınıfını projeden çağırıyoruz.
-from app.downloader.downloader import download
+from app.downloader.downloader import _USER_AGENT, download
 from app.domain import Candidate
 from app.config import DOWNLOAD_TIMEOUT
 
@@ -58,7 +58,10 @@ def test_download_success(mock_get):
 
     # Kodumuzun requests.get'i tam olarak hangi parametrelerle (stream=True ve timeout) ve kaç kez çağırdığını kontrol ediyoruz.
     mock_get.assert_called_once_with(
-        "http://sahte-site.com/resim.jpg", stream=True, timeout=DOWNLOAD_TIMEOUT
+        "http://sahte-site.com/resim.jpg",
+        stream=True,
+        timeout=DOWNLOAD_TIMEOUT,
+        headers={"User-Agent": _USER_AGENT},
     )
 
 
@@ -89,6 +92,39 @@ def test_download_rejects_html(mock_get):
     assert len(results) == 0, "HTML sayfası reddedilmeli, liste boş olmalı"
     # Tekrar deneme yapılmamalı, tam 1 kez denenip sonlandırılmalıdır.
     assert mock_get.call_count == 1, "HTML reddinde tekrar deneme yapılmamalı"
+
+
+@patch("app.downloader.downloader.requests.get")
+def test_download_accepts_normalized_allowed_content_type(mock_get):
+    fake_response = Mock()
+    fake_response.status_code = 200
+    fake_response.headers = {"Content-Type": " IMAGE/PNG ; charset=utf-8 "}
+    fake_response.iter_content = Mock(return_value=[b"png data"])
+    mock_get.return_value = fake_response
+
+    results = download([Candidate(url="http://sahte-site.com/resim")])
+
+    assert len(results) == 1
+    assert results[0].content_type == " IMAGE/PNG ; charset=utf-8 "
+    assert results[0].extension == ".png"
+
+
+@patch("app.downloader.downloader.requests.get")
+def test_download_rejects_svg_and_logs_content_type(mock_get, caplog):
+    fake_response = Mock()
+    fake_response.status_code = 200
+    fake_response.headers = {"Content-Type": "image/svg+xml; charset=utf-8"}
+    fake_response.iter_content = Mock()
+    mock_get.return_value = fake_response
+    url = "http://sahte-site.com/resim.svg"
+
+    results = download([Candidate(url=url)])
+
+    assert results == []
+    mock_get.assert_called_once()
+    fake_response.iter_content.assert_not_called()
+    assert url in caplog.text
+    assert "image/svg+xml" in caplog.text
 
 
 # Başlıkta (Content-Length) belirtilen boyutun MAX_FILE_SIZE limitini aşması durumunda görselin reddedildiğini test eder.
@@ -154,11 +190,19 @@ def test_download_retries_on_server_error(mock_get):
     mock_get.return_value = fake_response
 
     candidates = [Candidate(url="http://sahte-site.com/hata.jpg")]
-    results = download(candidates)
+    with (
+        patch(
+            "app.downloader.downloader.random.randint", return_value=1
+        ) as mock_randint,
+        patch("app.downloader.downloader.time.sleep") as mock_sleep,
+    ):
+        results = download(candidates)
 
     assert len(results) == 0, "Hata veren site indirilmemeli"
     # DOWNLOAD_RETRIES 2 ise toplamda 3 deneme yapılmalı (1 asıl + 2 retry)
     assert mock_get.call_count == 3
+    assert mock_randint.call_args_list == [call(1, 2), call(1, 2)]
+    assert mock_sleep.call_args_list == [call(1), call(1)]
 
 
 # İstemci hatası (örneğin 404) durumunda tekrar deneme (retry) yapılmaması gerektiğini test eder.
@@ -170,11 +214,17 @@ def test_download_no_retry_on_client_error(mock_get):
     mock_get.return_value = fake_response
 
     candidates = [Candidate(url="http://sahte-site.com/bulunamadi.jpg")]
-    results = download(candidates)
+    with (
+        patch("app.downloader.downloader.random.randint") as mock_randint,
+        patch("app.downloader.downloader.time.sleep") as mock_sleep,
+    ):
+        results = download(candidates)
 
     assert len(results) == 0, "404 veren site indirilmemeli"
     # İstemci hatası olduğu için sadece 1 kez denenmeli, retry yapılmamalıdır
     assert mock_get.call_count == 1
+    mock_randint.assert_not_called()
+    mock_sleep.assert_not_called()
 
 
 @patch("app.downloader.downloader.config.MAX_CONCURRENT_DOWNLOADS", 2)
@@ -299,3 +349,6 @@ def test_downloaded_image_extension_mapping():
         url="u3", data=b"", content_type="application/octet-stream"
     )
     assert img_unknown.extension == ".jpg"
+
+    img_svg = DownloadedImage(url="u4", data=b"", content_type="image/svg+xml")
+    assert img_svg.extension == ".jpg"

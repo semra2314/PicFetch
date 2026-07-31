@@ -1,5 +1,3 @@
-// Backend'deki app/config.py -> MAX_COUNT ile aynı değeri taşımalı.
-// Tek istekte istenebilecek maksimum görsel sayısı.
-// Backend değişirse burası da güncellenmeli; tek kaynak olsun diye
-// arayüzün hiçbir yerinde bu sayı elle yazılmaz, hep buradan okunur.
-export const MAX_COUNT = 50;
+// /health okunamazsa veya geçersiz max_count döndürürse kullanılan yedek değer.
+// Normal çalışma sınırı backend'den çalışma zamanında alınır.
+export const FALLBACK_MAX_COUNT = 50;

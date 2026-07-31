@@ -1,4 +1,6 @@
 import logging  # bu satırın amacı logging: Hata olduğunda print yerine profesyonelce log kaydı tutmak için (Proje kuralı #5).
+import random
+import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
 import requests  # bu satır requests: HTTP(Internet) üzerinden veri (Resim/URL) çekmek için kullanılan kütüphane.
@@ -14,15 +16,37 @@ from app import (
 logger = logging.getLogger(__name__)
 # config: Timeout ve retry gibi ayarları tek bir yerden (config.py) okumak için.
 
+_ALLOWED_IMAGE_CONTENT_TYPES = frozenset(
+    {
+        "image/jpeg",
+        "image/jpg",
+        "image/png",
+        "image/webp",
+        "image/gif",
+        "image/bmp",
+        "image/tiff",
+    }
+)
+_USER_AGENT = (
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+    "AppleWebKit/537.36 (KHTML, like Gecko) "
+    "Chrome/138.0.0.0 Safari/537.36"
+)
+
 
 def _download_single(candidate: Candidate) -> DownloadedImage | None:
     """Tek bir URL'yi indirir. Başarısızsa None döndürür."""
     # config.DOWNLOAD_RETRIES 2 ise, range(3) bize 0, 1, 2 verir (Toplam 3 deneme)
+    min_delay = min(config.DOWNLOAD_RETRY_DELAY_MIN, config.DOWNLOAD_RETRY_DELAY_MAX)
+    max_delay = max(config.DOWNLOAD_RETRY_DELAY_MIN, config.DOWNLOAD_RETRY_DELAY_MAX)
     for attempt in range(config.DOWNLOAD_RETRIES + 1):
         try:
             # stream=True: İsteği açar ancak gövdeyi (body) hemen indirmez, sadece header'ları çeker.
             response = requests.get(
-                candidate.url, stream=True, timeout=config.DOWNLOAD_TIMEOUT
+                candidate.url,
+                stream=True,
+                timeout=config.DOWNLOAD_TIMEOUT,
+                headers={"User-Agent": _USER_AGENT},
             )
             try:
                 # 1. Kontrol: HTTP durum kodu başarılı mı? (Örn: 404, 403 vb. durumları logda ayrıştırmak için)
@@ -36,7 +60,8 @@ def _download_single(candidate: Candidate) -> DownloadedImage | None:
 
                 # 2. Kontrol: Gerçekten görsel mi?
                 content_type = response.headers.get("Content-Type", "")
-                if not content_type.lower().startswith("image/"):
+                clean_content_type = content_type.split(";", 1)[0].strip().lower()
+                if clean_content_type not in _ALLOWED_IMAGE_CONTENT_TYPES:
                     logger.warning(
                         f"URL görsel değil: {candidate.url} - İçerik tipi: {content_type} (Durum kodu: {response.status_code})"
                     )
@@ -102,7 +127,8 @@ def _download_single(candidate: Candidate) -> DownloadedImage | None:
             logger.warning(
                 f"İndirme hatası (Deneme {attempt + 1}/{config.DOWNLOAD_RETRIES + 1}): {candidate.url} - Hata: {e}"
             )
-            # Burada 'break' YOK. Döngü devam eder ve bir sonraki 'attempt' denemesini yapar.
+            if attempt < config.DOWNLOAD_RETRIES:
+                time.sleep(random.randint(min_delay, max_delay))
 
     return None
 
