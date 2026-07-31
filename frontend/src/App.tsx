@@ -1,8 +1,8 @@
 import { useEffect, useRef, useState } from "react";
 import type { FormEvent } from "react";
 
-import { isAbortError, SearchError, searchImages } from "./api";
-import { MAX_COUNT } from "./constants";
+import { getHealth, isAbortError, SearchError, searchImages } from "./api";
+import { FALLBACK_MAX_COUNT } from "./constants";
 import type { ApiImageResult } from "./types";
 
 type ViewState = "search" | "loading" | "results" | "empty" | "error";
@@ -119,6 +119,7 @@ export default function App() {
   const [formError, setFormError] = useState("");
   const [requestError, setRequestError] = useState("");
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
+  const [maxCount, setMaxCount] = useState(FALLBACK_MAX_COUNT);
   const requestId = useRef(0);
   const searchStartedAt = useRef<number | null>(null);
   const activeController = useRef<AbortController | null>(null);
@@ -145,6 +146,24 @@ export default function App() {
   }, [view]);
 
   useEffect(() => {
+    let active = true;
+
+    void getHealth()
+      .then((response) => {
+        if (active) {
+          setMaxCount(response.max_count);
+        }
+      })
+      .catch(() => {
+        // Başlangıç state'i yedek değerdir; health hatasında onu koru.
+      });
+
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  useEffect(() => {
     return () => {
       requestId.current += 1;
       activeController.current?.abort();
@@ -161,8 +180,8 @@ export default function App() {
       return;
     }
 
-    if (!Number.isInteger(normalizedCount) || normalizedCount < 1 || normalizedCount > MAX_COUNT) {
-      setFormError(`Görsel sayısı 1–${MAX_COUNT} arasında bir tam sayı olmalıdır.`);
+    if (!Number.isInteger(normalizedCount) || normalizedCount < 1 || normalizedCount > maxCount) {
+      setFormError(`Görsel sayısı 1–${maxCount} arasında bir tam sayı olmalıdır.`);
       return;
     }
 
@@ -183,7 +202,12 @@ export default function App() {
     setView("loading");
 
     try {
-      const response = await searchImages(normalizedKeyword, normalizedCount, controller.signal);
+      const response = await searchImages(
+        normalizedKeyword,
+        normalizedCount,
+        controller.signal,
+        maxCount,
+      );
 
       if (requestId.current !== currentId || controller.signal.aborted) {
         return;
@@ -327,7 +351,7 @@ export default function App() {
                   <input
                     type="number"
                     min="1"
-                    max={MAX_COUNT}
+                    max={maxCount}
                     step="1"
                     value={count}
                     onChange={(event) => {

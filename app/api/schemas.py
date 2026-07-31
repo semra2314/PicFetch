@@ -3,6 +3,11 @@ from pydantic import BaseModel, Field, field_validator
 from app import config
 
 
+class HealthResponse(BaseModel):
+    status: str
+    max_count: int = Field(gt=0)
+
+
 class SearchRequest(BaseModel):
     """Kullanıcıdan gelen aramaları karşılayan ve doğrulayan model."""
 

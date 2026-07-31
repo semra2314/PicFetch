@@ -1,13 +1,54 @@
 from pathlib import Path
 from unittest.mock import patch
 
+import pytest
 from fastapi.testclient import TestClient
+from pydantic import ValidationError
 
 from app import config
+from app.api.schemas import HealthResponse
 from app.domain import DownloadedImage, PipelineResult
 from app.main import app
 
 client = TestClient(app)
+
+
+def test_health_returns_status_and_max_count() -> None:
+    with patch.object(config, "MAX_COUNT", 17):
+        response = client.get("/health")
+
+    assert response.status_code == 200
+    assert response.json() == {"status": "ok", "max_count": 17}
+
+
+@pytest.mark.parametrize("invalid_max_count", [0, -1])
+def test_health_response_rejects_non_positive_max_count(
+    invalid_max_count: int,
+) -> None:
+    with pytest.raises(ValidationError):
+        HealthResponse(status="ok", max_count=invalid_max_count)
+
+
+@pytest.mark.parametrize("invalid_max_count", [0, -1])
+def test_health_does_not_serve_non_positive_max_count(
+    invalid_max_count: int,
+) -> None:
+    non_raising_client = TestClient(app, raise_server_exceptions=False)
+    with patch.object(config, "MAX_COUNT", invalid_max_count):
+        response = non_raising_client.get("/health")
+
+    assert response.status_code == 500
+
+
+def test_health_openapi_marks_max_count_as_strictly_positive() -> None:
+    response = client.get("/openapi.json")
+
+    assert response.status_code == 200
+    max_count_schema = response.json()["components"]["schemas"]["HealthResponse"][
+        "properties"
+    ]["max_count"]
+    assert max_count_schema["type"] == "integer"
+    assert max_count_schema["exclusiveMinimum"] == 0
 
 
 def _mock_result(found: int = 1) -> PipelineResult:

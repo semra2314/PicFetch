@@ -1,5 +1,4 @@
-import { MAX_COUNT } from "./constants";
-import type { SearchResponse } from "./types";
+import type { HealthResponse, SearchResponse } from "./types";
 
 export type SearchErrorKind = "validation" | "server" | "network" | "unexpected";
 
@@ -15,6 +14,44 @@ export class SearchError extends Error {
 
 export function isAbortError(error: unknown): boolean {
   return error instanceof DOMException && error.name === "AbortError";
+}
+
+function isHealthResponse(value: unknown): value is HealthResponse {
+  if (typeof value !== "object" || value === null) {
+    return false;
+  }
+
+  const response = value as Partial<HealthResponse>;
+
+  return (
+    response.status === "ok" &&
+    Number.isInteger(response.max_count) &&
+    Number(response.max_count) > 0
+  );
+}
+
+async function requestHealth(): Promise<HealthResponse> {
+  const response = await fetch("/health");
+
+  if (!response.ok) {
+    throw new Error("Health isteği başarısız oldu.");
+  }
+
+  const body: unknown = await response.json();
+
+  if (!isHealthResponse(body)) {
+    throw new Error("Health yanıtı geçersiz.");
+  }
+
+  return body;
+}
+
+let healthRequest: Promise<HealthResponse> | null = null;
+
+export function getHealth(): Promise<HealthResponse> {
+  healthRequest ??= requestHealth();
+
+  return healthRequest;
 }
 
 // Sunucunun gönderdiği açıklamayı (FastAPI'nin "detail" alanı) okumaya
@@ -38,6 +75,7 @@ export async function searchImages(
   keyword: string,
   count: number,
   signal: AbortSignal,
+  maxCount: number,
 ): Promise<SearchResponse> {
   let response: Response;
 
@@ -75,7 +113,7 @@ export async function searchImages(
   if (response.status === 422) {
     throw new SearchError(
       "validation",
-      `Arama kelimesini ve 1–${MAX_COUNT} arasındaki görsel sayısını kontrol edin.`,
+      `Arama kelimesini ve 1–${maxCount} arasındaki görsel sayısını kontrol edin.`,
     );
   }
 
