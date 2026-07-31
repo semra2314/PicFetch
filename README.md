@@ -13,16 +13,25 @@ git clone https://github.com/semra2314/PicFetch.git
 cd PicFetch
 
 python -m venv .venv
-pip install -r requirements.txt
 ```
 
 **Venv'i aktive etme:**
+
 ```bash
-# Windows
+# Windows — Command Prompt
 .venv\Scripts\activate
+
+# Windows — PowerShell
+.venv\Scripts\Activate.ps1
 
 # macOS/Linux
 source .venv/bin/activate
+```
+
+Aktivasyondan sonra Python bağımlılıklarını kurun:
+
+```bash
+python -m pip install -r requirements.txt
 ```
 
 **Frontend (web arayüzü):**
@@ -57,8 +66,8 @@ uvicorn app.main:app --reload
 python -m app.cli "kedi" --count 5
 ```
 
-> **Not:** CLI şu an sadece verdiğiniz argümanları (`keyword`, `count`) ekrana yazdırır;
-> gerçek arama/indirme/tespit mantığı Faz 1'de eklenecek.
+CLI, pipeline'ı uçtan uca çalıştırır ve doğrulanmış görselleri `data/downloads/`
+altına kaydeder.
 
 ## Geliştirme
 
