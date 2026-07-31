@@ -22,34 +22,37 @@ def search(keyword: str, count: int) -> list[Candidate]:
         candidates = []  # her deneme için temiz arama yap,diğer arama sonuçlarıyla karışmaması için
 
         try:
-            results = DDGS().images(
-                query=keyword, max_results=count
-            )  # sonuç görselini ddgs kütüphanesi ile arar
-            if not results:  # sonucun arandığı ama sonucun 0 olduğu durum
-                logger.warning(
-                    f"{keyword} için 0 sonuç bulundu"
-                )  # kritik durum değil ama uyarı alıyoruz(warning)
-                return []
-
-            for result in (
-                results
-            ):  # her bir sonuç için candidate(aday nesne )oluşturup listeledik
-                url = result.get("image")
-                if not url:
-                    logger.warning("eksik anahtarlı sonuç atlandı")
-                    continue  # image yoksa bu turu atlayıp devam eder
-                candidate = Candidate(url=url)
-                candidates.append(candidate)
-
-                if len(candidates) >= count:
-                    break
-
-            return candidates  # sonuc 0 değilse aday nesneleri döndür
-
+            with DDGS() as ddgs:
+                results = ddgs.images(
+                    query=keyword, max_results=count
+                )  # sonuç görselini ddgs kütüphanesi ile arar
         except Exception:
             logger.exception(f"Search attempt {attempt + 1} failed")
-            delay = random.randint(min_range, max_range)
-            time.sleep(delay)
-            # bir sonraki deneme için
-            # configden gelen aralıktan gelen rastgele süre kadar bekler(backoff)
+            if attempt < config.SEARCH_RETRIES - 1:
+                delay = random.randint(min_range, max_range)
+                time.sleep(delay)
+                # bir sonraki deneme için
+                # configden gelen aralıktan gelen rastgele süre kadar bekler(backoff)
+            continue
+
+        if not results:  # sonucun arandığı ama sonucun 0 olduğu durum
+            logger.warning(
+                f"{keyword} için 0 sonuç bulundu"
+            )  # kritik durum değil ama uyarı alıyoruz(warning)
+            return []
+
+        for (
+            result
+        ) in results:  # her bir sonuç için candidate(aday nesne )oluşturup listeledik
+            url = result.get("image")
+            if not url:
+                logger.warning("eksik anahtarlı sonuç atlandı")
+                continue  # image yoksa bu turu atlayıp devam eder
+            candidate = Candidate(url=url)
+            candidates.append(candidate)
+
+            if len(candidates) >= count:
+                break
+
+        return candidates  # sonuc 0 değilse aday nesneleri döndür
     return []  # tüm denemeler bitti, hiçbiri başarılı olmadı: boş dön

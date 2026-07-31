@@ -42,8 +42,9 @@ DOWNLOAD_RETRIES = 2
 # --- Kaynak arama servisi ---
 
 SEARCH_RETRIES = 3
-# Ne işe yarar: Arama servisi (ör. rate limit/5xx) hata verirse kaç kez
-#   tekrar denenecek.
+# Ne işe yarar: Arama servisi (ör. rate limit/5xx) hata verirse toplam kaç
+#   deneme yapılacak. DOWNLOAD_RETRIES ise ilk denemeden sonraki ek deneme
+#   sayısıdır; iki ayarın semantiği bilinçli olarak farklıdır.
 # Neden bu değer: Servisin geçici hatalarının çoğu birkaç denemede geçiyor;
 #   deneyimsel olarak 3 yeterli bulundu.
 # Değişirse: Artarsa -> geçici servis kesintilerine dayanıklılık artar ama
