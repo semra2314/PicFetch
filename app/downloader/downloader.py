@@ -1,4 +1,6 @@
 import logging  # bu satırın amacı logging: Hata olduğunda print yerine profesyonelce log kaydı tutmak için (Proje kuralı #5).
+import random
+import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
 import requests  # bu satır requests: HTTP(Internet) üzerinden veri (Resim/URL) çekmek için kullanılan kütüphane.
@@ -35,6 +37,8 @@ _USER_AGENT = (
 def _download_single(candidate: Candidate) -> DownloadedImage | None:
     """Tek bir URL'yi indirir. Başarısızsa None döndürür."""
     # config.DOWNLOAD_RETRIES 2 ise, range(3) bize 0, 1, 2 verir (Toplam 3 deneme)
+    min_delay = min(config.DOWNLOAD_RETRY_DELAY_MIN, config.DOWNLOAD_RETRY_DELAY_MAX)
+    max_delay = max(config.DOWNLOAD_RETRY_DELAY_MIN, config.DOWNLOAD_RETRY_DELAY_MAX)
     for attempt in range(config.DOWNLOAD_RETRIES + 1):
         try:
             # stream=True: İsteği açar ancak gövdeyi (body) hemen indirmez, sadece header'ları çeker.
@@ -123,7 +127,8 @@ def _download_single(candidate: Candidate) -> DownloadedImage | None:
             logger.warning(
                 f"İndirme hatası (Deneme {attempt + 1}/{config.DOWNLOAD_RETRIES + 1}): {candidate.url} - Hata: {e}"
             )
-            # Burada 'break' YOK. Döngü devam eder ve bir sonraki 'attempt' denemesini yapar.
+            if attempt < config.DOWNLOAD_RETRIES:
+                time.sleep(random.randint(min_delay, max_delay))
 
     return None
 

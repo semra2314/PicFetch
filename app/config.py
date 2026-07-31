@@ -39,6 +39,14 @@ DOWNLOAD_RETRIES = 2
 # Değişirse: Artarsa -> geçici hatalara karşı dayanıklılık artar ama toplam
 #   süre uzar. Azalırsa (0) -> geçici hatalarda bile görsel tamamen kaybolur.
 
+DOWNLOAD_RETRY_DELAY_MIN = 1
+DOWNLOAD_RETRY_DELAY_MAX = 2
+# Ne işe yararlar: Yalnızca gerçekten yapılacak indirme retry'ları arasında
+#   rastgele beklenecek alt/üst süreyi belirler (sn). Search gecikmesinden daha
+#   kısadır; indirme retry'ları çok daha sık çalışır.
+# Değişirse: Artarsa -> sunuculara daha nazik davranılır ama toplu indirme
+#   süresi uzar. Azalırsa -> geçici hata aynı anda yeniden tetiklenebilir.
+
 # --- Kaynak arama servisi ---
 
 SEARCH_RETRIES = 3

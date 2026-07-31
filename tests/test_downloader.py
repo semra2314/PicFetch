@@ -3,7 +3,7 @@
 import requests
 
 # unittest.mock kütüphanesinden patch (fonksiyonu taklit etmek için) ve Mock (sahte nesne üretmek için) modüllerini içe aktarıyoruz.
-from unittest.mock import patch, Mock
+from unittest.mock import Mock, call, patch
 
 # Test edeceğimiz download fonksiyonunu ve test girdisi olarak kullanacağımız Candidate sınıfını projeden çağırıyoruz.
 from app.downloader.downloader import _USER_AGENT, download
@@ -190,11 +190,19 @@ def test_download_retries_on_server_error(mock_get):
     mock_get.return_value = fake_response
 
     candidates = [Candidate(url="http://sahte-site.com/hata.jpg")]
-    results = download(candidates)
+    with (
+        patch(
+            "app.downloader.downloader.random.randint", return_value=1
+        ) as mock_randint,
+        patch("app.downloader.downloader.time.sleep") as mock_sleep,
+    ):
+        results = download(candidates)
 
     assert len(results) == 0, "Hata veren site indirilmemeli"
     # DOWNLOAD_RETRIES 2 ise toplamda 3 deneme yapılmalı (1 asıl + 2 retry)
     assert mock_get.call_count == 3
+    assert mock_randint.call_args_list == [call(1, 2), call(1, 2)]
+    assert mock_sleep.call_args_list == [call(1), call(1)]
 
 
 # İstemci hatası (örneğin 404) durumunda tekrar deneme (retry) yapılmaması gerektiğini test eder.
@@ -206,11 +214,17 @@ def test_download_no_retry_on_client_error(mock_get):
     mock_get.return_value = fake_response
 
     candidates = [Candidate(url="http://sahte-site.com/bulunamadi.jpg")]
-    results = download(candidates)
+    with (
+        patch("app.downloader.downloader.random.randint") as mock_randint,
+        patch("app.downloader.downloader.time.sleep") as mock_sleep,
+    ):
+        results = download(candidates)
 
     assert len(results) == 0, "404 veren site indirilmemeli"
     # İstemci hatası olduğu için sadece 1 kez denenmeli, retry yapılmamalıdır
     assert mock_get.call_count == 1
+    mock_randint.assert_not_called()
+    mock_sleep.assert_not_called()
 
 
 @patch("app.downloader.downloader.config.MAX_CONCURRENT_DOWNLOADS", 2)
