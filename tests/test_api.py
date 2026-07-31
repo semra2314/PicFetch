@@ -44,11 +44,11 @@ def test_empty_keyword_returns_422() -> None:
         mock_run.assert_not_called()
 
 
-def test_whitespace_only_keyword_returns_422() -> None:
+def test_keyword_above_max_length_returns_422() -> None:
     with patch("app.pipeline.run") as mock_run:
         response = client.post(
             "/search",
-            json={"keyword": "   ", "count": 5},
+            json={"keyword": "a" * 101, "count": 5},
         )
 
         assert response.status_code == 422

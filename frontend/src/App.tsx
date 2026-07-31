@@ -186,6 +186,7 @@ export default function App() {
 
                   <input
                     type="text"
+                    maxLength={100}
                     value={keyword}
                     onChange={(event) => {
                       setKeyword(event.target.value);
