@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { FormEvent } from "react";
 
 import { SearchError, searchImages } from "./api";
@@ -8,6 +8,13 @@ import type { ApiImageResult } from "./types";
 type ViewState = "search" | "loading" | "results" | "empty" | "error";
 
 const SUGGESTIONS = ["cat", "dog", "car", "bird"];
+
+function formatElapsed(seconds: number): string {
+  const minutes = Math.floor(seconds / 60);
+  const remainingSeconds = seconds % 60;
+
+  return `${minutes}:${String(remainingSeconds).padStart(2, "0")}`;
+}
 
 function sourceLabel(url: string): string {
   try {
@@ -39,7 +46,30 @@ export default function App() {
   const [found, setFound] = useState(0);
   const [formError, setFormError] = useState("");
   const [requestError, setRequestError] = useState("");
+  const [elapsedSeconds, setElapsedSeconds] = useState(0);
   const requestId = useRef(0);
+  const searchStartedAt = useRef<number | null>(null);
+
+  useEffect(() => {
+    if (view !== "loading") {
+      return;
+    }
+
+    function updateElapsed() {
+      const startedAt = searchStartedAt.current;
+
+      if (startedAt === null) {
+        return;
+      }
+
+      setElapsedSeconds(Math.max(0, Math.floor((Date.now() - startedAt) / 1000)));
+    }
+
+    updateElapsed();
+    const intervalId = window.setInterval(updateElapsed, 1000);
+
+    return () => window.clearInterval(intervalId);
+  }, [view]);
 
   async function runSearch(keywordOverride?: string) {
     const normalizedKeyword = (keywordOverride ?? keyword).trim();
@@ -62,6 +92,8 @@ export default function App() {
     setFound(0);
     setFormError("");
     setRequestError("");
+    searchStartedAt.current = Date.now();
+    setElapsedSeconds(0);
     setView("loading");
 
     // Bu aramanın sıra numarası. Yanıt döndüğünde hâlâ en güncel arama
@@ -300,7 +332,10 @@ export default function App() {
 
                 <div className="flex items-center gap-3 rounded-xl border border-white/10 bg-black/20 px-4 py-3">
                   <span className="h-3 w-3 animate-pulse rounded-full bg-purple-400 shadow-[0_0_18px_rgba(192,132,252,0.9)]" />
-                  <span className="text-sm text-slate-300">Çalışıyor</span>
+                  <span className="text-sm text-slate-300">
+                    Çalışıyor ·{" "}
+                    <span className="tabular-nums">{formatElapsed(elapsedSeconds)}</span> geçti
+                  </span>
                 </div>
               </div>
 
@@ -318,8 +353,7 @@ export default function App() {
               </div>
 
               <p className="mt-8 text-center text-sm leading-6 text-slate-400">
-                İstenen görsel sayısına ve bilgisayarın işlem gücüne göre bu işlem birkaç dakika
-                sürebilir. Sayfayı kapatmayın.
+                Arama tamamlandığında sonuçlar otomatik olarak gösterilir.
               </p>
             </div>
           </section>
