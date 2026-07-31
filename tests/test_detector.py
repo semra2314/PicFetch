@@ -51,6 +51,28 @@ def test_detect_with_corrupted_image_returns_zero(caplog):
     assert "Görsel decode edilemedi" in caplog.text
 
 
+def test_detect_with_decompression_bomb_returns_zero_without_inference(
+    monkeypatch,
+    caplog,
+) -> None:
+    fake_model = _fake_model()
+    valid_image_data = _gecerli_gorsel_baytlari()
+    monkeypatch.setattr(detector, "_model", fake_model)
+    monkeypatch.setattr(Image, "MAX_IMAGE_PIXELS", 1)
+    image = DownloadedImage(
+        url="http://ornek.com/buyuk.jpg",
+        data=valid_image_data,
+    )
+
+    result = detector.detect(image, "kedi")
+
+    assert result.confidence == 0.0
+    assert "Görsel decode edilemedi" in caplog.text
+    fake_model.assert_not_called()
+    fake_model.get_text_pe.assert_not_called()
+    fake_model.set_classes.assert_not_called()
+
+
 def test_detect_reuses_embedding_for_same_keyword(monkeypatch) -> None:
     fake_model = _fake_model()
     embedding = object()

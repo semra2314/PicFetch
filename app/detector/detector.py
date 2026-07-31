@@ -59,7 +59,7 @@ def detect(image: DownloadedImage, keyword: str) -> DetectionResult:
         pil_img = Image.open(BytesIO(image.data))
         # PIL'in tembel decode işlemini burada tamamlamasını zorla.
         pil_img.load()
-    except (UnidentifiedImageError, OSError) as e:
+    except (Image.DecompressionBombError, UnidentifiedImageError, OSError) as e:
         logger.warning("Görsel decode edilemedi: %s", e)
         return DetectionResult(image=image, confidence=0.0)
 
