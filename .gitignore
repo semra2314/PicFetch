@@ -8,3 +8,5 @@ __pycache__/
 .ruff_cache/
 mobileclip*.ts
 data/
+frontend/node_modules/
+frontend/dist/
