@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import type { FormEvent } from "react";
 
-import { SearchError, searchImages } from "./api";
+import { isAbortError, SearchError, searchImages } from "./api";
 import { MAX_COUNT } from "./constants";
 import type { ApiImageResult } from "./types";
 
@@ -49,6 +49,7 @@ export default function App() {
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
   const requestId = useRef(0);
   const searchStartedAt = useRef<number | null>(null);
+  const activeController = useRef<AbortController | null>(null);
 
   useEffect(() => {
     if (view !== "loading") {
@@ -71,6 +72,14 @@ export default function App() {
     return () => window.clearInterval(intervalId);
   }, [view]);
 
+  useEffect(() => {
+    return () => {
+      requestId.current += 1;
+      activeController.current?.abort();
+      activeController.current = null;
+    };
+  }, []);
+
   async function runSearch(keywordOverride?: string) {
     const normalizedKeyword = (keywordOverride ?? keyword).trim();
     const normalizedCount = Number(count);
@@ -85,6 +94,11 @@ export default function App() {
       return;
     }
 
+    activeController.current?.abort();
+    const controller = new AbortController();
+    activeController.current = controller;
+    const currentId = ++requestId.current;
+
     setKeyword(normalizedKeyword);
     // İstenen sayıyı şimdiden yaz: bekleme ekranı ham metin state'i yerine
     // normalize edilmiş sayıyı göstersin ("007" değil "7").
@@ -96,15 +110,10 @@ export default function App() {
     setElapsedSeconds(0);
     setView("loading");
 
-    // Bu aramanın sıra numarası. Yanıt döndüğünde hâlâ en güncel arama
-    // bu mu diye bakarız; değilse (kullanıcı formu sıfırladı ya da yeni
-    // bir arama başlattı) geç gelen yanıtı sessizce yok sayarız.
-    const currentId = ++requestId.current;
-
     try {
-      const response = await searchImages(normalizedKeyword, normalizedCount);
+      const response = await searchImages(normalizedKeyword, normalizedCount, controller.signal);
 
-      if (requestId.current !== currentId) {
+      if (requestId.current !== currentId || controller.signal.aborted) {
         return;
       }
 
@@ -113,7 +122,7 @@ export default function App() {
       setFound(response.found);
       setView(response.found === 0 ? "empty" : "results");
     } catch (error) {
-      if (requestId.current !== currentId) {
+      if (requestId.current !== currentId || controller.signal.aborted || isAbortError(error)) {
         return;
       }
 
@@ -124,6 +133,10 @@ export default function App() {
       }
 
       setView("error");
+    } finally {
+      if (activeController.current === controller) {
+        activeController.current = null;
+      }
     }
   }
 
@@ -135,6 +148,8 @@ export default function App() {
   function resetSearch() {
     // Uçuştaki isteği geçersiz kılar: geç dönerse ekranı ele geçiremez.
     requestId.current += 1;
+    activeController.current?.abort();
+    activeController.current = null;
 
     setView("search");
     setResults([]);
@@ -355,6 +370,16 @@ export default function App() {
               <p className="mt-8 text-center text-sm leading-6 text-slate-400">
                 Arama tamamlandığında sonuçlar otomatik olarak gösterilir.
               </p>
+
+              <div className="mt-5 text-center">
+                <button
+                  type="button"
+                  onClick={resetSearch}
+                  className="rounded-xl border border-white/10 bg-white/5 px-5 py-3 text-sm font-semibold text-slate-300 transition hover:bg-white/10 hover:text-white"
+                >
+                  Vazgeç
+                </button>
+              </div>
             </div>
           </section>
         )}

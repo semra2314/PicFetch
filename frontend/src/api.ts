@@ -13,6 +13,10 @@ export class SearchError extends Error {
   }
 }
 
+export function isAbortError(error: unknown): boolean {
+  return error instanceof DOMException && error.name === "AbortError";
+}
+
 // Sunucunun gönderdiği açıklamayı (FastAPI'nin "detail" alanı) okumaya
 // çalışır. Gövde boşsa veya JSON değilse sessizce boş döner; çağıran
 // taraf o zaman genel bir mesaja düşer.
@@ -21,12 +25,20 @@ async function readDetail(response: Response): Promise<string> {
     const body = await response.json();
 
     return typeof body?.detail === "string" ? body.detail : "";
-  } catch {
+  } catch (error) {
+    if (isAbortError(error)) {
+      throw error;
+    }
+
     return "";
   }
 }
 
-export async function searchImages(keyword: string, count: number): Promise<SearchResponse> {
+export async function searchImages(
+  keyword: string,
+  count: number,
+  signal: AbortSignal,
+): Promise<SearchResponse> {
   let response: Response;
 
   try {
@@ -36,8 +48,13 @@ export async function searchImages(keyword: string, count: number): Promise<Sear
         "Content-Type": "application/json",
       },
       body: JSON.stringify({ keyword, count }),
+      signal,
     });
-  } catch {
+  } catch (error) {
+    if (isAbortError(error)) {
+      throw error;
+    }
+
     throw new SearchError(
       "network",
       "Sunucuya ulaşılamadı. Bağlantınızı kontrol edip tekrar deneyin.",
@@ -75,7 +92,11 @@ export async function searchImages(keyword: string, count: number): Promise<Sear
 
   try {
     return (await response.json()) as SearchResponse;
-  } catch {
+  } catch (error) {
+    if (isAbortError(error)) {
+      throw error;
+    }
+
     throw new SearchError("unexpected", "Sunucunun yanıtı okunamadı.");
   }
 }
