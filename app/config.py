@@ -80,17 +80,13 @@ NON_RETRYABLE_STATUS_CODES = [
 
 # --- Depolama ---
 
-DOWNLOADS_DIR = "data/downloads"
+DOWNLOADS_DIR = PROJECT_ROOT / "data" / "downloads"
 # Ne işe yarar: İndirilen görsellerin yazılacağı kök klasör.
-# Neden bu değer: Karar 7'de belirlenen standart yol; proje kökünden
-#   göreli olduğu için farklı ortamlarda (dev/CI) tutarlı çalışır.
+# Neden bu değer: Karar 7'de belirlenen standart yol; depo köküne
+#   sabitlendiği için uygulama hangi çalışma dizininden başlatılırsa
+#   başlatılsın aynı klasörü kullanır.
 # Değişirse: Testlerin geçici klasör (tmp_path) verebilmesi için config
 #   üzerinden okunmalı — koda gömülü olursa testler prod klasörüne yazar.
-# NOT: FRONTEND_DIST depo köküne sabitlenmiş durumda, bu yol ise hâlâ
-# çalışma dizinine göreli. Sunucu repo kökü dışından başlatılırsa arayüz
-# açılır ama görseller 404 döner. Kısmi çalışan bu durum, her şeyin
-# birden bozulmasından daha zor teşhis edilir — ayrı bir kartta
-# PROJECT_ROOT ile mutlaklaştırılmalı.
 
 
 MODEL_NAME = "yoloe-26m-seg.pt"
