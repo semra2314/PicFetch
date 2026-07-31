@@ -25,6 +25,11 @@ _ALLOWED_IMAGE_CONTENT_TYPES = frozenset(
         "image/tiff",
     }
 )
+_USER_AGENT = (
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+    "AppleWebKit/537.36 (KHTML, like Gecko) "
+    "Chrome/138.0.0.0 Safari/537.36"
+)
 
 
 def _download_single(candidate: Candidate) -> DownloadedImage | None:
@@ -34,7 +39,10 @@ def _download_single(candidate: Candidate) -> DownloadedImage | None:
         try:
             # stream=True: İsteği açar ancak gövdeyi (body) hemen indirmez, sadece header'ları çeker.
             response = requests.get(
-                candidate.url, stream=True, timeout=config.DOWNLOAD_TIMEOUT
+                candidate.url,
+                stream=True,
+                timeout=config.DOWNLOAD_TIMEOUT,
+                headers={"User-Agent": _USER_AGENT},
             )
             try:
                 # 1. Kontrol: HTTP durum kodu başarılı mı? (Örn: 404, 403 vb. durumları logda ayrıştırmak için)

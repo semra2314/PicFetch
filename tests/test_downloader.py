@@ -6,7 +6,7 @@ import requests
 from unittest.mock import patch, Mock
 
 # Test edeceğimiz download fonksiyonunu ve test girdisi olarak kullanacağımız Candidate sınıfını projeden çağırıyoruz.
-from app.downloader.downloader import download
+from app.downloader.downloader import _USER_AGENT, download
 from app.domain import Candidate
 from app.config import DOWNLOAD_TIMEOUT
 
@@ -58,7 +58,10 @@ def test_download_success(mock_get):
 
     # Kodumuzun requests.get'i tam olarak hangi parametrelerle (stream=True ve timeout) ve kaç kez çağırdığını kontrol ediyoruz.
     mock_get.assert_called_once_with(
-        "http://sahte-site.com/resim.jpg", stream=True, timeout=DOWNLOAD_TIMEOUT
+        "http://sahte-site.com/resim.jpg",
+        stream=True,
+        timeout=DOWNLOAD_TIMEOUT,
+        headers={"User-Agent": _USER_AGENT},
     )
 
 
