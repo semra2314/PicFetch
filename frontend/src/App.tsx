@@ -37,6 +37,78 @@ function isSafeHttpUrl(url: string): boolean {
   }
 }
 
+interface ResultCardProps {
+  image: ApiImageResult;
+  index: number;
+  keyword: string;
+}
+
+function ResultCard({ image, index, keyword }: ResultCardProps) {
+  const [imageFailed, setImageFailed] = useState(false);
+
+  return (
+    <article className="group overflow-hidden rounded-2xl border border-white/10 bg-white/[0.045] shadow-xl shadow-black/20 transition duration-300 hover:-translate-y-1 hover:border-purple-400/30">
+      <div className="relative aspect-[4/3] overflow-hidden bg-black/30">
+        {imageFailed ? (
+          <div
+            role="img"
+            aria-label="Görsel yüklenemedi"
+            className="flex h-full w-full items-center justify-center px-6 text-center text-sm font-medium text-slate-400"
+          >
+            Görsel yüklenemedi
+          </div>
+        ) : (
+          <>
+            <img
+              src={image.image_url}
+              alt={`${keyword} doğrulanmış sonucu ${index + 1}`}
+              loading="lazy"
+              onError={() => setImageFailed(true)}
+              className="h-full w-full object-cover transition duration-500 group-hover:scale-105"
+            />
+
+            <span className="absolute right-3 top-3 rounded-full border border-emerald-300/20 bg-emerald-950/80 px-3 py-1.5 text-xs font-semibold text-emerald-300 backdrop-blur">
+              ✓ Doğrulandı
+            </span>
+          </>
+        )}
+      </div>
+
+      <div className="p-4">
+        {isSafeHttpUrl(image.source_url) ? (
+          <a
+            href={image.source_url}
+            target="_blank"
+            rel="noreferrer"
+            className="block truncate text-sm text-slate-400 transition hover:text-purple-300"
+          >
+            {sourceLabel(image.source_url)} ↗
+          </a>
+        ) : (
+          <span className="block truncate text-sm text-slate-400">Kaynak bağlantısı geçersiz</span>
+        )}
+
+        {imageFailed ? (
+          <span
+            aria-disabled="true"
+            className="mt-4 flex h-10 cursor-not-allowed items-center justify-center rounded-xl border border-white/10 bg-white/[0.025] text-sm font-semibold text-slate-500"
+          >
+            Görsel indirilemiyor
+          </span>
+        ) : (
+          <a
+            href={image.image_url}
+            download
+            className="mt-4 flex h-10 items-center justify-center rounded-xl border border-purple-400/25 bg-purple-500/10 text-sm font-semibold text-purple-300 transition hover:bg-purple-500/20"
+          >
+            Görseli indir
+          </a>
+        )}
+      </div>
+    </article>
+  );
+}
+
 export default function App() {
   const [view, setView] = useState<ViewState>("search");
   const [keyword, setKeyword] = useState("");
@@ -408,48 +480,12 @@ export default function App() {
 
             <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
               {results.map((image, index) => (
-                <article
+                <ResultCard
                   key={`${image.image_url}-${index}`}
-                  className="group overflow-hidden rounded-2xl border border-white/10 bg-white/[0.045] shadow-xl shadow-black/20 transition duration-300 hover:-translate-y-1 hover:border-purple-400/30"
-                >
-                  <div className="relative aspect-[4/3] overflow-hidden bg-black/30">
-                    <img
-                      src={image.image_url}
-                      alt={`${keyword} doğrulanmış sonucu ${index + 1}`}
-                      loading="lazy"
-                      className="h-full w-full object-cover transition duration-500 group-hover:scale-105"
-                    />
-
-                    <span className="absolute right-3 top-3 rounded-full border border-emerald-300/20 bg-emerald-950/80 px-3 py-1.5 text-xs font-semibold text-emerald-300 backdrop-blur">
-                      ✓ Doğrulandı
-                    </span>
-                  </div>
-
-                  <div className="p-4">
-                    {isSafeHttpUrl(image.source_url) ? (
-                      <a
-                        href={image.source_url}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="block truncate text-sm text-slate-400 transition hover:text-purple-300"
-                      >
-                        {sourceLabel(image.source_url)} ↗
-                      </a>
-                    ) : (
-                      <span className="block truncate text-sm text-slate-400">
-                        Kaynak bağlantısı geçersiz
-                      </span>
-                    )}
-
-                    <a
-                      href={image.image_url}
-                      download
-                      className="mt-4 flex h-10 items-center justify-center rounded-xl border border-purple-400/25 bg-purple-500/10 text-sm font-semibold text-purple-300 transition hover:bg-purple-500/20"
-                    >
-                      Görseli indir
-                    </a>
-                  </div>
-                </article>
+                  image={image}
+                  index={index}
+                  keyword={keyword}
+                />
               ))}
             </div>
           </section>
