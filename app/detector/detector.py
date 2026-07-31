@@ -92,3 +92,19 @@ def detect(image: DownloadedImage, keyword: str) -> DetectionResult:
         max_conf = float(conf.max())
 
     return DetectionResult(image=image, confidence=max_conf)
+
+
+def warm_up() -> None:
+    """Load the model, text encoder, and inference path before serving requests."""
+    buffer = BytesIO()
+    with Image.new("RGB", (32, 32), color="white") as warmup_image:
+        warmup_image.save(buffer, format="PNG")
+
+    image = DownloadedImage(
+        url="internal://warm-up.png",
+        data=buffer.getvalue(),
+        content_type="image/png",
+    )
+    logger.info("Model ısıtılıyor...")
+    detect(image, "object")
+    logger.info("Model ısıtma tamamlandı.")

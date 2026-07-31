@@ -133,3 +133,18 @@ def test_detect_clears_embedding_cache_when_model_changes(monkeypatch) -> None:
     first_model.get_text_pe.assert_called_once_with(["kedi"])
     second_model.get_text_pe.assert_called_once_with(["kedi"])
     second_model.set_classes.assert_called_once_with(["kedi"], second_embedding)
+
+
+def test_warm_up_runs_detect_with_a_small_valid_image(monkeypatch) -> None:
+    mock_detect = MagicMock()
+    monkeypatch.setattr(detector, "detect", mock_detect)
+
+    detector.warm_up()
+
+    mock_detect.assert_called_once()
+    image, keyword = mock_detect.call_args.args
+    assert keyword == "object"
+    assert image.content_type == "image/png"
+    with Image.open(BytesIO(image.data)) as warmup_image:
+        warmup_image.load()
+        assert warmup_image.size == (32, 32)

@@ -1,4 +1,6 @@
 import logging
+from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
 from pathlib import Path
 
 from fastapi import FastAPI, HTTPException
@@ -7,6 +9,7 @@ from fastapi.staticfiles import StaticFiles
 
 from app import config
 from app.api.routes import router
+from app.detector.detector import warm_up
 from app.logging_setup import setup_logging
 
 setup_logging()
@@ -18,7 +21,14 @@ downloads_dir.mkdir(parents=True, exist_ok=True)
 frontend_dist = Path(config.FRONTEND_DIST)
 frontend_assets = frontend_dist / "assets"
 
-app = FastAPI()
+
+@asynccontextmanager
+async def lifespan(_: FastAPI) -> AsyncIterator[None]:
+    warm_up()
+    yield
+
+
+app = FastAPI(lifespan=lifespan)
 app.include_router(router)
 
 # İndirilen ve doğrulanan görseller yalnızca /static altında sunulur.

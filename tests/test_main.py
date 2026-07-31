@@ -1,14 +1,26 @@
 from pathlib import Path
+from unittest.mock import MagicMock
 
 import pytest
 from fastapi.staticfiles import StaticFiles
 from fastapi.testclient import TestClient
 from starlette.routing import Mount
 
-from app import config
+from app import config, main as main_module
 from app.main import app
 
 client = TestClient(app)
+
+
+def test_lifespan_warms_model_once(monkeypatch: pytest.MonkeyPatch) -> None:
+    mock_warm_up = MagicMock()
+    monkeypatch.setattr(main_module, "warm_up", mock_warm_up)
+
+    with TestClient(app) as lifespan_client:
+        response = lifespan_client.get("/health")
+
+    assert response.status_code == 200
+    mock_warm_up.assert_called_once_with()
 
 
 def test_root_returns_503_when_frontend_not_built(
