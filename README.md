@@ -1,12 +1,71 @@
 # PicFetch
 
-Kullanıcının verdiği bir kelimeye göre web'den görsel arayan, YOLOE-26 ile o kelimenin
-görselde gerçekten olup olmadığını doğrulayan bir görsel arama sistemi.
+Kullanıcının verdiği bir kelimeye göre web'den görsel arayan, **YOLOE-26** ile o kelimenin
+görselde bulunup bulunmadığını doğrulayan bir görsel arama sistemi.
 
-> **Durum:** Faz 0 — proje iskeleti kuruldu. Modüllerin (`search`, `downloader`, `detector`,
-> `ranking`) içi henüz boş (`...`); yalnızca tipler ve fonksiyon imzaları tanımlı.
+Sıradan bir görsel aramasından farkı şu: arama motorunun döndürdüğü sonuçlara güvenmez.
+Her adayı indirir, açık-sözcük bir nesne tespit modelinden geçirir ve yalnızca modelin
+aranan nesneyi tespit ettiği görselleri gösterir. Bu yüzden **"50 istendi, 22 bulundu"
+gibi bir sonuç normaldir ve bir hata değildir.**
+
+**Akış:** `kelime + adet` → arama → indirme → tekilleştirme → tespit (YOLOE-26) →
+süzme/sıralama → diske yazma → kullanıcıya sunum
+
+İki giriş kapısı vardır: bir **web arayüzü/API** (FastAPI) ve bir **CLI** (terminal).
+İkisi de aynı çekirdeği çağırır.
+
+---
+
+## Gereksinimler
+
+| Bileşen | Sürüm | Ne için |
+|---|---|---|
+| Python | 3.12 | Backend |
+| Node.js | 22+ | Arayüz derlemesi |
+| pnpm | 9 | Arayüz paket yöneticisi |
+| Docker | — | Alternatif kurulum (Node/Python gerekmez) |
+
+Disk: model ağırlığı (~67 MB) ve metin kodlayıcı (~242 MB) ilk çalıştırmada iner.
+
+**GPU gerekmez.** Sistem CPU'da çalışır; doğrulama aşaması yavaşlar ama diğer aşamalar
+etkilenmez. Ayrıntı için "Ne kadar sürer?" bölümüne bakın.
+
+---
 
 ## Kurulum
+
+### Seçenek A — Docker (önerilen)
+
+Node ve Python kurulumu gerektirmez; arayüz derlemesi image içinde yapılır.
+
+```bash
+git clone https://github.com/semra2314/PicFetch.git
+cd PicFetch
+
+docker compose up --build
+```
+
+Ardından `http://localhost:8000` adresini açın.
+
+İlk build **ağ hızına göre 10–30 dakika** sürer. Sürenin çoğu model ağırlığı (67 MB) ve
+metin kodlayıcının (242 MB) indirilmesine gider; ikisi de image'a gömülür, böylece
+container her açıldığında yeniden inmez ve açılış birkaç saniye sürer.
+
+Durdurmak için:
+
+```bash
+docker compose down
+```
+
+> `docker-compose.yml` içinde `restart: unless-stopped` tanımlı — container kendini
+> yeniden başlatır. Terminali kapatmak yetmez, açıkça `down` demeniz gerekir.
+
+İndirilen görseller `data/` altında kalır; container silinse de durur.
+
+**Docker image CPU torch kullanır** (bilinçli tercih, `Dockerfile` içinde açıkça
+kurulur). GPU'lu bir makinede ölçüm yapacaksanız yerel kurulumu kullanın.
+
+### Seçenek B — Yerel kurulum (venv)
 
 ```bash
 git clone https://github.com/semra2314/PicFetch.git
@@ -15,7 +74,7 @@ cd PicFetch
 python -m venv .venv
 ```
 
-**Venv'i aktive etme:**
+**Venv'i aktive edin:**
 
 ```bash
 # Windows — Command Prompt
@@ -28,16 +87,26 @@ python -m venv .venv
 source .venv/bin/activate
 ```
 
-Aktivasyondan sonra Python bağımlılıklarını kurun:
+**Python bağımlılıkları:**
 
 ```bash
 python -m pip install -r requirements.txt
 ```
 
-**Frontend (web arayüzü):**
+> **Not — `clip` bağımlılığı.** Ultralytics'in metin komutu yolu (`get_text_pe`),
+> `requirements.txt`'te bulunmayan bir `clip` paketine ihtiyaç duyar. Docker imajında bu
+> paket sabitlenmiş bir commit'ten açıkça kurulur. Yerel kurulumda ise ultralytics
+> eksikliği ilk arama sırasında fark eder ve kendi kendine kurmayı dener; bu deneme
+> sessizce ağa çıkar ve bazı ortamlarda (git yoksa) başarısız olur. Sorun yaşarsanız
+> aynı sürümü elle kurun:
+>
+> ```bash
+> pip install "git+https://github.com/ultralytics/CLIP.git@c4b6ea0932a2c0f39a0fa528af5ec4982ff15cab"
+> ```
+
+**Arayüz (frontend):**
 
 Arayüz Vite + React ile derlenir; Python bağımlılıklarından ayrıdır.
-Node.js 22+ ve pnpm 9 gerektirir.
 
 ```bash
 npm install -g pnpm@9      # pnpm kurulu değilse
@@ -48,51 +117,216 @@ pnpm build                  # frontend/dist üretir
 cd ..
 ```
 
-`pnpm build` çalıştırılmazsa sunucu yine ayağa kalkar, ancak `/` adresi 503 döner ve
+`pnpm build` çalıştırılmazsa sunucu yine ayağa kalkar, ancak `/` adresi **503** döner ve
 logda "Frontend build bulunamadı" uyarısı görünür. API (`/search`, `/health`) build
 olmadan da çalışır.
 
+> `uvicorn --reload` yalnızca `.py` dosyalarını izler. Arayüzde yaptığınız değişiklik
+> `pnpm build` çalıştırılmadan tarayıcıya yansımaz.
+
+**GPU kullanmak isterseniz (isteğe bağlı):** `torch` `requirements.txt`'te yer almaz,
+ultralytics bağımlılığı olarak gelir ve varsayılan olarak CPU sürümü kurulur. NVIDIA
+kartınız varsa [pytorch.org](https://pytorch.org/get-started/locally/) üzerinden CUDA'lı
+sürümü kurabilirsiniz — kod değişikliği gerekmez, ultralytics donanımı kendisi tespit
+eder. Bu tamamen yerel bir tercihtir; `requirements.txt`'i ve CI'ı etkilemez.
+
+---
+
 ## Çalıştırma
 
-**Docker ile:**
-```bash
-docker compose up --build
-```
-`http://localhost:8000` — arayüz ve API. Frontend build'i image içinde alınır, ayrıca `pnpm build` gerekmez.
+### Web
 
-İlk build 10–15 dakika sürer: CPU torch, model ağırlığı (~67 MB) ve metin kodlayıcı (~242 MB) image'a gömülür. Sonraki build'ler katman önbelleğinden gelir.
-
-Açılışta model ısıtması yaklaşık 5 saniye sürer; bu sırada sayfa boş gelir, bir kez yenilemek yeterlidir. Isıtma başarısız olursa uygulama hiç başlamaz.
-
-İndirilen görseller `data/` altında kalır; container silinse de durur.
-
-**Web (FastAPI):**
 ```bash
 uvicorn app.main:app --reload
 ```
-- `http://127.0.0.1:8000/` — arayüz (önce `pnpm build` gerekir)
-- `http://127.0.0.1:8000/health` — sağlık kontrolü
 
-**CLI (terminal):**
+- `http://127.0.0.1:8000/` — arayüz (önce `pnpm build` gerekir)
+- `http://127.0.0.1:8000/health` — sağlık kontrolü ve `max_count` değeri
+- `http://127.0.0.1:8000/docs` — otomatik API dokümantasyonu
+
+**Açılışta ısıtma:** Sunucu, ilk isteği beklemeden modeli yükler ve küçük bir görselle tek
+bir çıkarım koşturur. Böylece ilk arama yapan kişi model yükleme bedelini ödemez. Bu adım
+başarısız olursa **uygulama hiç başlamaz** — bilinçli tercih: "ok" diyen ama her aramada
+patlayan bir sunucu, hiç açılmayan bir sunucudan daha zor teşhis edilir.
+
+`--reload` ile geliştirirken her yeniden başlatmada ısıtma süresi ödenir.
+
+### CLI
+
 ```bash
-python -m app.cli "kedi" --count 5
+python -m app.cli "cat" --count 5
 ```
 
-CLI, pipeline'ı uçtan uca çalıştırır ve doğrulanmış görselleri `data/downloads/`
-altına kaydeder.
+`--count` verilmezse varsayılan 10'dur; üst sınır `config.MAX_COUNT`'tur.
+
+CLI, zinciri uçtan uca çalıştırır ve doğrulanmış görselleri `data/downloads/` altına
+kaydeder. Bir ürün değil, **doğrulama aracıdır**: "sistem gerçekten çalışıyor mu"
+sorusunu tarayıcı gürültüsü olmadan cevaplamak için vardır.
+
+### API'yi doğrudan kullanma
+
+```bash
+curl -X POST http://127.0.0.1:8000/search \
+  -H "Content-Type: application/json" \
+  -d '{"keyword": "cat", "count": 5}'
+```
+
+Yanıt, her görsel için sunucudaki adresi (`image_url`) ve orijinal kaynağı (`source_url`)
+taşır; ayrıca `requested` ve `found` sayılarını döndürür. Görseller `image_url` üzerinden
+`/static/...` altından servis edilir.
+
+---
+
+## Bilinmesi gerekenler
+
+### Ne kadar sürer?
+
+Beklemenin büyük kısmı **indirme** aşamasında geçer. GPU'lu bir makinede yapılan bir
+ölçümde 50 görsellik bir arama uçtan uca ~39 saniye sürdü ve şöyle dağıldı:
+
+| Aşama | Süre | Pay |
+|---|---|---|
+| Arama | ~1 sn | %3 |
+| İndirme | ~32 sn | %82 |
+| Doğrulama | ~6 sn | %15 |
+
+Doğrulama aşaması donanıma çok bağlıdır. Aynı model ve aynı görsellerle yapılan ölçümde
+görsel başına çıkarım süresi **GPU'da ~63 ms, CPU'da ~409 ms** çıktı — yaklaşık **6,5
+kat** fark. CPU'lu bir makinede doğrulama, indirmeyle başa baş gelir veya onu geçer.
+Arama ve indirme süreleri donanımdan etkilenmez.
+
+Doğrulama, istenen sayıya ulaşıldığı anda durur (bkz. "Sonuçlar en iyi eşleşmeler mi?").
+Bu yüzden doğrulama oranı yüksek kelimelerde arama belirgin biçimde daha hızlı biter.
+
+Arayüz beklerken geçen süreyi gösterir ve arama bitince toplam süreyi ekranda bırakır.
+Uzun bekleme **normaldir**, takılma değildir.
+
+### "İstenen sayıya ulaşılamadı" neden olur?
+
+Doğrulama oranı kelimeye göre ciddi biçimde değişir. Tek kelimeli aramalarda ölçülen
+örnekler:
+
+| Kelime | İncelenen | Eşiği geçen | Oran |
+|---|---|---|---|
+| cat | 50 | 50 | %100 |
+| car | 62 | 50 | %81 |
+| ananas | 32 | 18 | %56 |
+| forest | 32 | 10 | ~%31 |
+| pineapple | 85 | 22 | %26 |
+
+Nesnenin doğranmış, dilimlenmiş, çizim/logo hâlinde veya kadrajı dolduracak biçimde
+göründüğü görsellerde model zorlanır. `pineapple` sonuçlarının çoğu yemek tarifi
+görselidir (doğranmış, ızgara, tabakta) ve model bunları ananas olarak tanımaz.
+`forest` gibi sahne isimlerinde ise nesne düzeyinde kutu çizilecek bir örnek yoktur.
+
+Bu bir hata değil, modelin sınırıdır — sistem durumu "50 istendi, 22 bulundu" diyerek
+dürüstçe gösterir. İstediğiniz sayıya ulaşamıyorsanız somut ve tekil bir nesne adı
+denemek genellikle işe yarar.
+
+### Kelime seçimi hakkında bilinmeyenler
+
+Aşağıdaki iki konuda **çelişkili gözlemler** var ve temiz bir ölçüm yapılmadı. Kural
+olarak yazmıyoruz:
+
+- **Dil.** Arayüz "yalnızca İngilizce kelimeler destekleniyor" uyarısı gösterir. Ancak
+  Türkçe kelimelerle de sonuç alındığı gözlendi. Metin kodlayıcı ağırlıklı
+  olarak İngilizce veriyle eğitildiği için İngilizce kelimelerin daha iyi çalışması bekleniyor.
+
+
+### Sonuçlar en iyi eşleşmeler mi?
+
+Tam olarak değil. Sistem, eşiği geçen istenen sayıda görsele ulaştığı anda doğrulamayı
+durdurur; kalan adaylar hiç incelenmez. Dönen liste kendi içinde güven skoruna göre
+sıralıdır, ancak "havuzdaki en iyi N görsel" olduğu **garanti edilmez**. Bu, hız lehine
+verilmiş bilinçli bir takastır.
+
+`DETECT_THRESHOLD` cömert bir eşiktir (0.25); peluş oyuncak, çizim veya logo gibi
+sonuçlar da listeye girebilir.
+
+### Veriler nerede?
+
+- `data/downloads/` — doğrulanmış görseller, içerik hash'iyle adlandırılır
+  (`ab/abcd1234….jpg`). Aranan kelime dosya yoluna hiç girmez.
+- Aynı içerik iki kez inse bile tek dosya olarak durur.
+- **Otomatik temizlik yoktur.** Klasör zamanla büyür; gerektiğinde elle boşaltın.
+
+---
+
+## Yapılandırma
+
+Tüm ayarlar `app/config.py` içindedir ve her sabitin yanında *ne işe yarar / neden bu
+değer / değişirse ne olur* açıklaması bulunur. Sık dokunulanlar:
+
+| Sabit | Varsayılan | Ne yapar |
+|---|---|---|
+| `MAX_COUNT` | 50 | Tek istekte istenebilecek en fazla görsel |
+| `DETECT_THRESHOLD` | 0.25 | Bir tespitin "geçerli" sayılması için gereken güven skoru |
+| `OVERFETCH` | 2 | İstenenin kaç katı aday çekileceği |
+| `SEARCH_MAX_PAGES` | 3 | Aramada en fazla kaç sonuç sayfası çekileceği |
+| `SEARCH_BACKEND` | `bing` | Kullanılacak arama motoru |
+| `MAX_CONCURRENT_DOWNLOADS` | 12 | Aynı anda kaç indirme çalışacağı |
+| `DOWNLOAD_TIMEOUT` | 4 | Bir indirme için beklenecek en fazla süre (sn) |
+| `MODEL_NAME` | `yoloe-26m-seg.pt` | Kullanılan model dosyası |
+
+> `SEARCH_BACKEND`'e geçersiz bir motor adı yazılırsa kütüphane hata vermez, sessizce
+> otomatik seçime döner. Değiştirirken log'dan hangi motorun çalıştığını doğrulayın.
+
+Log seviyesi `LOG_LEVEL` ortam değişkeninden okunur (varsayılan `INFO`):
+
+```bash
+LOG_LEVEL=DEBUG uvicorn app.main:app --reload
+```
+
+Her arama tek satırlık bir özet log basar:
+
+```
+Arama özeti keyword='car' istenen=50 sorulan=100 aday=93 inen=88 tekil=88 incelenen=62 esigi_gecen=50
+```
+
+| Alan | Anlamı |
+|---|---|
+| `istenen` | Kullanıcının istediği görsel sayısı |
+| `sorulan` | Aramadan istenen aday sayısı (`istenen × OVERFETCH`) |
+| `aday` | Aramanın döndürdüğü tekil URL sayısı |
+| `inen` | Başarıyla indirilen dosya sayısı |
+| `tekil` | İçerik olarak birbirinden farklı olanlar |
+| `incelenen` | Modelden geçirilen görsel sayısı |
+| `esigi_gecen` | Eşiği geçen, yani kullanıcıya sunulabilecek olanlar |
+
+Bir sorunun hangi aşamada olduğunu anlamak için ilk bakılacak yer burasıdır. İki karşılaştırma
+özellikle işe yarar: `sorulan` ile `aday` arasındaki fark arama katmanının yetersiz
+kaldığını, `incelenen` ile `tekil` arasındaki fark ise doğrulamanın erken durduğunu
+gösterir (`incelenen = tekil` ise havuzun tamamı taranmış, istenen sayıya ulaşılamamış
+demektir).
+
+---
 
 ## Geliştirme
 
 Commit atmadan önce:
+
 ```bash
 ruff check .
 ruff format .
+mypy app
+pytest tests/ --ignore=tests/integration
 ```
 
 Frontend tarafında:
+
 ```bash
 cd frontend
 pnpm typecheck              # tsc --noEmit
+pnpm build
 pnpm exec oxfmt .           # biçimlendir
 pnpm exec oxfmt --check .   # sadece kontrol et
 ```
+
+**Entegrasyon testi** gerçek modeli çalıştırdığı için yavaştır ve CI'da koşmaz; elle
+çalıştırılır:
+
+```bash
+pytest tests/integration
+```
+
+CI her PR'da ruff, mypy ve birim testlerini koşturur.
