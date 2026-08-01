@@ -66,6 +66,29 @@ SEARCH_RETRY_DELAY_MAX = 6
 # Değişirse: Artarsa -> servise nazik davranılır ama toplam süre uzar.
 #   Azalırsa -> rate limit'e tekrar takılma riski artar.
 
+SEARCH_MAX_PAGES = 3
+# Ne işe yarar: Bir arama için kaynak servisten en fazla kaç sonuç sayfası
+#   çekileceği. İstenen aday sayısına daha erken ulaşılırsa sayfalama durur.
+# Neden bu değer: ddgs, `max_results` değerini motora HİÇ iletmiyor (yalnızca
+#   dönen listeyi kırpıyor), bu yüzden Bing'e sayfa başına sabit 35 sonuç
+#   soruluyor. Ölçülen eleme oranlarıyla (indirme ~%90, eşik ~%55) bir sayfa
+#   ~18 doğrulanmış görsele denk geliyor; MAX_COUNT=50'yi karşılamak için
+#   3 sayfa gerekiyor.
+# Değişirse: Artarsa -> daha büyük aday havuzu, ama her sayfa ek bir HTTP
+#   isteği demek (~1-2 sn) ve derin sayfalarda sonuç alaka düzeyi düşer.
+#   Azalırsa -> yüksek count değerlerinde istenen sayıya ulaşılamaz.
+
+SEARCH_BACKEND = "bing"
+# Ne işe yarar: ddgs'nin hangi görsel motorunu kullanacağı.
+# Neden bu değer: Varsayılan "auto" önce `duckduckgo` motorunu deniyor; o motor
+#   403/timeout verdiğinde ddgs istisna fırlatıyor, arama başarısız sayılıyor ve
+#   her aramaya boşuna bir retry + backoff bedeli biniyor. Gerçek bir kaynak
+#   çeşitliliği kaybı yok: iki görsel motoru da provider="bing" olduğu için
+#   ddgs zaten ikisinden yalnızca birini çalıştırıyor.
+# Değişirse: "auto" -> duckduckgo'ya erişilebilen ağlarda yedek kazanılır,
+#   erişilemeyen ağlarda her arama timeout bedeli öder. GEÇERSİZ bir motor adı
+#   yazılırsa ddgs hata vermez, sessizce "auto"ya döner (ddgs.py:345).
+
 # --- Dosya doğrulama ---
 
 MAX_FILE_SIZE = 10 * 1024 * 1024  # 10MB

@@ -62,10 +62,14 @@ def test_search_recovers():
             mock_images = mock_ddgs.return_value.__enter__.return_value.images
             mock_images.side_effect = [
                 Exception("ağ hatası"),  # 1. deneme patlar
-                [{"image": "http://ornek.com/1.jpg"}],  # 2. deneme başarılı
+                [  # 2. deneme başarılı ve count'u doldurur
+                    {"image": "http://ornek.com/1.jpg"},
+                    {"image": "http://ornek.com/2.jpg"},
+                    {"image": "http://ornek.com/3.jpg"},
+                ],
             ]
             result = search("cat", 3)
-            assert len(result) == 1
+            assert len(result) == 3
             assert result[0].url == "http://ornek.com/1.jpg"
             mock_sleep.assert_called_once()
             assert (
@@ -118,5 +122,141 @@ def test_search_does_not_retry_parsing_errors() -> None:
         else:
             raise AssertionError("Ayrıştırma hatası çağırana iletilmeliydi")
 
-        mock_images.assert_called_once_with(query="cat", max_results=3)
+        mock_images.assert_called_once_with(
+            query="cat",
+            max_results=3,
+            page=1,
+            backend=config.SEARCH_BACKEND,
+        )
         mock_sleep.assert_not_called()
+
+
+# --- sayfalama ---
+
+
+def test_search_uses_configured_backend(monkeypatch) -> None:
+    """Motor seçimi koda gömülü değil, config'den okunur."""
+    monkeypatch.setattr(config, "SEARCH_BACKEND", "bing")
+    with patch("app.search.search.DDGS") as mock_ddgs:
+        mock_images = mock_ddgs.return_value.__enter__.return_value.images
+        mock_images.return_value = [{"image": "http://ornek.com/1.jpg"}]
+        search("cat", 1)
+
+    mock_images.assert_called_once_with(
+        query="cat", max_results=1, page=1, backend="bing"
+    )
+
+
+def test_search_paginates_until_count_reached(monkeypatch) -> None:
+    """Tek sayfa count'u dolduramıyorsa sonraki sayfa istenir.
+
+    Sayfalamanın var olma sebebi bu: ddgs max_results'ı motora iletmediği için
+    sayfa başına sabit sayıda sonuç geliyor.
+    """
+    monkeypatch.setattr(config, "SEARCH_MAX_PAGES", 3)
+    with patch("app.search.search.DDGS") as mock_ddgs:
+        mock_images = mock_ddgs.return_value.__enter__.return_value.images
+        mock_images.side_effect = [
+            [{"image": "http://ornek.com/1.jpg"}, {"image": "http://ornek.com/2.jpg"}],
+            [{"image": "http://ornek.com/3.jpg"}, {"image": "http://ornek.com/4.jpg"}],
+        ]
+        result = search("cat", 4)
+
+    assert [candidate.url for candidate in result] == [
+        "http://ornek.com/1.jpg",
+        "http://ornek.com/2.jpg",
+        "http://ornek.com/3.jpg",
+        "http://ornek.com/4.jpg",
+    ]
+    # page artarak gitmeli; hep 1 gönderilirse aynı sayfa tekrar tekrar çekilir
+    assert [c.kwargs["page"] for c in mock_images.call_args_list] == [1, 2]
+
+
+def test_search_stops_as_soon_as_count_is_reached(monkeypatch) -> None:
+    """count dolduğunda SEARCH_MAX_PAGES'e kadar devam edilmez."""
+    monkeypatch.setattr(config, "SEARCH_MAX_PAGES", 5)
+    with patch("app.search.search.DDGS") as mock_ddgs:
+        mock_images = mock_ddgs.return_value.__enter__.return_value.images
+        mock_images.return_value = [
+            {"image": "http://ornek.com/1.jpg"},
+            {"image": "http://ornek.com/2.jpg"},
+        ]
+        result = search("cat", 2)
+
+    assert len(result) == 2
+    mock_images.assert_called_once()
+
+
+def test_search_deduplicates_urls_across_pages(monkeypatch) -> None:
+    """Sayfalar arasında tekrar eden URL ikinci kez aday yapılmaz.
+
+    pipeline zaten içerik hash'iyle tekilleştiriyor ama o indirmeden SONRA
+    çalışıyor; burada elenen tekrar, hiç yapılmayan bir HTTP isteği demek.
+    """
+    monkeypatch.setattr(config, "SEARCH_MAX_PAGES", 2)
+    with patch("app.search.search.DDGS") as mock_ddgs:
+        mock_images = mock_ddgs.return_value.__enter__.return_value.images
+        mock_images.side_effect = [
+            [{"image": "http://ornek.com/1.jpg"}, {"image": "http://ornek.com/2.jpg"}],
+            [{"image": "http://ornek.com/2.jpg"}, {"image": "http://ornek.com/3.jpg"}],
+        ]
+        result = search("cat", 10)
+
+    assert [candidate.url for candidate in result] == [
+        "http://ornek.com/1.jpg",
+        "http://ornek.com/2.jpg",
+        "http://ornek.com/3.jpg",
+    ]
+
+
+def test_search_stops_when_page_brings_nothing_new(monkeypatch, caplog) -> None:
+    """Sayfa tamamen tekrardan ibaretse kaynak tükenmiştir, erken durulur."""
+    monkeypatch.setattr(config, "SEARCH_MAX_PAGES", 5)
+    with patch("app.search.search.DDGS") as mock_ddgs:
+        mock_images = mock_ddgs.return_value.__enter__.return_value.images
+        mock_images.return_value = [{"image": "http://ornek.com/1.jpg"}]
+        with caplog.at_level(logging.INFO):
+            result = search("cat", 10)
+
+    assert len(result) == 1
+    assert mock_images.call_count == 2  # 2. sayfa yeni sonuç getirmedi, durdu
+    assert "sayfalama durduruldu" in caplog.text
+
+
+def test_search_respects_max_pages(monkeypatch) -> None:
+    """count dolmasa bile SEARCH_MAX_PAGES aşılmaz."""
+    monkeypatch.setattr(config, "SEARCH_MAX_PAGES", 2)
+    with patch("app.search.search.DDGS") as mock_ddgs:
+        mock_images = mock_ddgs.return_value.__enter__.return_value.images
+        mock_images.side_effect = [
+            [{"image": "http://ornek.com/1.jpg"}],
+            [{"image": "http://ornek.com/2.jpg"}],
+        ]
+        result = search("cat", 100)
+
+    assert len(result) == 2
+    assert mock_images.call_count == 2
+
+
+def test_search_keeps_earlier_pages_when_later_page_fails(monkeypatch) -> None:
+    """Retry sayfa başına çalışır: 2. sayfa tamamen çökse de 1. sayfa korunur.
+
+    Retry tüm aramayı sarsaydı, geç gelen geçici bir hata o ana kadar
+    toplanmış adayları da çöpe atardı.
+    """
+    monkeypatch.setattr(config, "SEARCH_MAX_PAGES", 3)
+    with (
+        patch("app.search.search.DDGS") as mock_ddgs,
+        patch("app.search.search.time.sleep") as mock_sleep,
+    ):
+        mock_images = mock_ddgs.return_value.__enter__.return_value.images
+        mock_images.side_effect = [
+            [{"image": "http://ornek.com/1.jpg"}],  # 1. sayfa başarılı
+            Exception("ağ hatası"),  # 2. sayfanın 3 denemesi de patlar
+            Exception("ağ hatası"),
+            Exception("ağ hatası"),
+        ]
+        result = search("cat", 10)
+
+    assert [candidate.url for candidate in result] == ["http://ornek.com/1.jpg"]
+    assert mock_sleep.call_count == config.SEARCH_RETRIES - 1
