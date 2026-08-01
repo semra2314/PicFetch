@@ -1,0 +1,10 @@
+services:
+  picfetch:
+    build: .
+    image: picfetch:dev
+    ports:
+      - "8000:8000"
+    volumes:
+      # İndirilen görseller burada kalır; container silinse de kaybolmaz.
+      - ./data:/app/data
+    restart: unless-stopped
