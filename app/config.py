@@ -25,12 +25,14 @@ DETECT_THRESHOLD = 0.25
 
 # --- İndirme ---
 
-DOWNLOAD_TIMEOUT = 8
+DOWNLOAD_TIMEOUT = 4
 # Ne işe yarar: Bir görselin indirilmesi için beklenecek maksimum süre (sn).
 # Neden bu değer: Çoğu görsel host'u bu sürede yanıt veriyor; daha uzun
 #   beklemek toplu indirmede tıkanmaya yol açıyor.
 # Değişirse: Artarsa -> yavaş sunuculardan da indirme şansı artar ama toplam
 #   iş süresi uzar. Azalırsa -> yavaş bağlantılarda gereksiz timeout hataları.
+# Bu gerekçe 8 için yazılmıştı. Yeni değerin arkasındaki asıl sebep
+# (yuva açlığı + ölçülen başarı oranının düşmemesi)
 
 DOWNLOAD_RETRIES = 2
 # Ne işe yarar: Bir indirme timeout/hata verirse kaç kez daha denenecek.
@@ -99,7 +101,8 @@ MAX_FILE_SIZE = 10 * 1024 * 1024  # 10MB
 # Değişirse: Artarsa -> disk/bellek kullanımı ve indirme süresi artabilir.
 #   Azalırsa -> yüksek çözünürlüklü meşru görseller reddedilebilir.
 
-MAX_CONCURRENT_DOWNLOADS = 5  # Aynı anda indirilecek maksimum görsel sayısı
+MAX_CONCURRENT_DOWNLOADS = 12  # Aynı anda indirilecek maksimum görsel sayısı
+# (ilk başta 5 idi,testlerde 12 yi de problem olmadığı için 12 yaptım)
 DOWNLOAD_CHUNK_SIZE = 128 * 1024  # İndirme sırasında okunacak parça boyutu (128 KB)
 
 NON_RETRYABLE_STATUS_CODES = [
