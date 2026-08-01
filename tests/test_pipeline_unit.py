@@ -117,15 +117,21 @@ def test_download_called_once_with_all_candidates(
 
     assert mock_download.call_count == 1
     mock_download.assert_called_once_with(candidates)
-    assert mock_detect.call_count == fetch_count
+    # İndirme TOPLU, tespit ise erken çıkışlı: tüm skorlar eşiğin üstünde
+    # olduğu için count'uncu görselde durulur, kalan adaylar hiç işlenmez.
+    assert mock_detect.call_count == count
 
 
 def test_run_logs_single_summary_line(
     monkeypatch: pytest.MonkeyPatch,
     caplog: pytest.LogCaptureFixture,
 ) -> None:
-    """Özet log: tek satır, her aramada, keyword + dört sayı (§5 / Karar 5)."""
-    count = 2
+    """Özet log: tek satır, her aramada, keyword + sayılar (§5 / Karar 5).
+
+    Erken çıkışın TETİKLENMEDİĞİ senaryo: eşiği geçen sayı count'un altında
+    kaldığı için havuzun tamamı taranır ve esigi_gecen gerçek değeri gösterir.
+    """
+    count = 5
     fetch_count = int(count * config.OVERFETCH)
     candidates = make_candidates(fetch_count)
 
@@ -155,10 +161,76 @@ def test_run_logs_single_summary_line(
 
     assert "kedi" in message
     assert f"istenen={count}" in message
+    assert f"sorulan={fetch_count}" in message
     assert f"aday={fetch_count}" in message
     assert f"inen={fetch_count}" in message
     assert f"tekil={fetch_count}" in message
+    assert f"incelenen={fetch_count}" in message  # erken çıkış tetiklenmedi
     assert f"esigi_gecen={passing_count}" in message
+
+
+def test_run_stops_detecting_once_count_is_reached(
+    monkeypatch: pytest.MonkeyPatch,
+    mock_save_image: MagicMock,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Erken çıkış: eşiği geçen count'uncu görselde çıkarım durur.
+
+    Kalan adaylar indirilmiş olsa bile modelden geçirilmez — pahalı olan
+    aşama çıkarım, indirme değil.
+    """
+    count = 2
+    fetch_count = int(count * config.OVERFETCH)
+    candidates = make_candidates(fetch_count)
+    confidences = [0.9, 0.8, 0.7, 0.6]  # hepsi eşiğin üstünde
+
+    mock_search = MagicMock(return_value=candidates)
+    monkeypatch.setattr(pipeline, "search", mock_search)
+
+    mock_download = MagicMock(side_effect=make_download_side_effect())
+    monkeypatch.setattr(pipeline, "download", mock_download)
+
+    mock_detect = MagicMock(side_effect=make_detect_side_effect(confidences))
+    monkeypatch.setattr(pipeline, "detect", mock_detect)
+
+    with caplog.at_level(logging.INFO, logger=pipeline.logger.name):
+        result = pipeline.run("kedi", count)
+
+    assert mock_detect.call_count == count  # 4 aday indi, 2'si işlendi
+    assert len(result.images) == count
+    assert mock_save_image.call_count == count
+
+    message = caplog.records[0].getMessage()
+    # incelenen < tekil olması erken çıkışın imzası; ikisi eşit olsaydı
+    # havuzun tamamı taranmış olurdu.
+    assert f"tekil={fetch_count}" in message
+    assert f"incelenen={count}" in message
+
+
+def test_early_exit_does_not_trigger_below_count(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Eşiği geçen sayı count'a ulaşmıyorsa havuzun tamamı taranır."""
+    count = 5
+    fetch_count = int(count * config.OVERFETCH)
+    candidates = make_candidates(fetch_count)
+
+    # Sadece 2 tanesi eşiği geçiyor; count'a asla ulaşılmaz.
+    confidences = [0.9, 0.8] + [0.1] * (fetch_count - 2)
+
+    mock_search = MagicMock(return_value=candidates)
+    monkeypatch.setattr(pipeline, "search", mock_search)
+
+    mock_download = MagicMock(side_effect=make_download_side_effect())
+    monkeypatch.setattr(pipeline, "download", mock_download)
+
+    mock_detect = MagicMock(side_effect=make_detect_side_effect(confidences))
+    monkeypatch.setattr(pipeline, "detect", mock_detect)
+
+    result = pipeline.run("kedi", count)
+
+    assert mock_detect.call_count == fetch_count
+    assert len(result.images) == 2
 
 
 def test_partial_result(
