@@ -1,0 +1,17 @@
+.git
+.gitignore
+.venv
+__pycache__/
+*.pyc
+data/
+*.pt
+mobileclip*.ts
+frontend/node_modules
+frontend/dist
+tests/
+.mypy_cache
+.pytest_cache
+.ruff_cache
+.vscode
+.idea
+README.md

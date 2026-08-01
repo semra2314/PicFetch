@@ -54,6 +54,18 @@ olmadan da çalışır.
 
 ## Çalıştırma
 
+**Docker ile:**
+```bash
+docker compose up --build
+```
+`http://localhost:8000` — arayüz ve API. Frontend build'i image içinde alınır, ayrıca `pnpm build` gerekmez.
+
+İlk build 10–15 dakika sürer: CPU torch, model ağırlığı (~67 MB) ve metin kodlayıcı (~242 MB) image'a gömülür. Sonraki build'ler katman önbelleğinden gelir.
+
+Açılışta model ısıtması yaklaşık 5 saniye sürer; bu sırada sayfa boş gelir, bir kez yenilemek yeterlidir. Isıtma başarısız olursa uygulama hiç başlamaz.
+
+İndirilen görseller `data/` altında kalır; container silinse de durur.
+
 **Web (FastAPI):**
 ```bash
 uvicorn app.main:app --reload
