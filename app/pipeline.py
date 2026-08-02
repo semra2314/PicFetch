@@ -35,9 +35,22 @@ def run(keyword: str, count: int) -> PipelineResult:
         seen_hashes.add(content_hash)
         unique_downloaded.append(image)
 
-    results: list[DetectionResult] = [
-        detect(image, keyword) for image in unique_downloaded
-    ]
+    # Erken çıkış: eşiği geçen `count` görsele ulaşıldığı an çıkarım durur.
+    # Bilinçli takas — dönen liste artık "havuzdaki en yüksek güvenli count"
+    # değil, "eşiği geçen ilk count". Geriye kalan adaylar hiç modelden
+    # geçmediği için aralarında daha iyisi olup olmadığı BİLİNMİYOR.
+    # Kazanç kelimeye bağlı: doğrulama oranı yüksek kelimelerde havuzun büyük
+    # kısmı hiç işlenmez, düşük olanlarda erken çıkış hiç tetiklenmez.
+    results: list[DetectionResult] = []
+    passed_count = 0
+    for image in unique_downloaded:
+        result = detect(image, keyword)
+        results.append(result)
+        if result.confidence >= config.DETECT_THRESHOLD:
+            passed_count += 1
+            if passed_count >= count:
+                break
+
     raw_threshold_count = count_at_or_above_threshold(
         results,
         config.DETECT_THRESHOLD,
@@ -52,13 +65,24 @@ def run(keyword: str, count: int) -> PipelineResult:
     # Tek satır, KOŞULSUZ: eşiği gerçek sonuçlara bakarak ayarlamanın (Karar 5) ve
     # "0 bulundu" teşhisinin (§6) dayanağı bu sayıların YAN YANA olması. Eşzamanlı
     # isteklerde hangi satır hangi aramaya ait olduğu için keyword de basılır.
+    # `sorulan` olmadan aday sayısı yorumlanamaz: 50 istenip 35 aday dönmesi,
+    # aramanın 100 sorulup 35 bulmasıyla aynı şey değil. Darboğazın arama
+    # katmanında mı yoksa elemede mi olduğunu ayıran alan bu.
+    #
+    # `incelenen` erken çıkış yüzünden şart: erken çıkış tetiklendiğinde
+    # esigi_gecen zorunlu olarak count'a eşit çıkar ve tek başına hiçbir şey
+    # anlatmaz. incelenen < tekil ise erken çıkmışız, eşit ise havuz bitmiş
+    # demektir — "50 istedim 50 aldım" ile "50 istedim havuzu tarayıp 50
+    # bulabildim" ancak bu iki sayı yan yanayken ayırt edilebiliyor.
     logger.info(
-        "Arama özeti keyword=%r istenen=%d aday=%d inen=%d tekil=%d esigi_gecen=%d",
+        "Arama özeti keyword=%r istenen=%d sorulan=%d aday=%d inen=%d tekil=%d incelenen=%d esigi_gecen=%d",
         keyword,
         count,
+        fetch_count,
         len(candidates),
         len(downloaded),
         len(unique_downloaded),
+        len(results),
         raw_threshold_count,
     )
 

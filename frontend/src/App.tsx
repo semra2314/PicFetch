@@ -16,6 +16,19 @@ function formatElapsed(seconds: number): string {
   return `${minutes}:${String(remainingSeconds).padStart(2, "0")}`;
 }
 
+// Ekran okuyucu "0:47" ifadesini anlamlı okuyamaz; duyuru metninde
+// süreyi kelimeyle veriyoruz.
+function formatElapsedLabel(seconds: number): string {
+  const minutes = Math.floor(seconds / 60);
+  const remainingSeconds = seconds % 60;
+
+  if (minutes === 0) {
+    return `${remainingSeconds} saniye`;
+  }
+
+  return `${minutes} dakika ${remainingSeconds} saniye`;
+}
+
 function sourceLabel(url: string): string {
   try {
     return new URL(url).hostname.replace(/^www\./, "");
@@ -213,6 +226,15 @@ export default function App() {
         return;
       }
 
+      // Nihai süreyi saniyelik sayaçtan değil, doğrudan başlangıç damgasından
+      // ölçüyoruz: sayaç son tick'inde kalmış olabilir ve 47.6 sn süren bir
+      // arama "47" görünürdü. Sonuç ekranında gösterilen değer bu.
+      const startedAt = searchStartedAt.current;
+
+      if (startedAt !== null) {
+        setElapsedSeconds(Math.max(0, Math.round((Date.now() - startedAt) / 1000)));
+      }
+
       setResults(response.images);
       setRequested(response.requested);
       setFound(response.found);
@@ -290,8 +312,10 @@ export default function App() {
         */}
         <p className="sr-only" role="status" aria-live="polite">
           {view === "loading" && "Arama sürüyor, lütfen bekleyin."}
-          {view === "results" && `Arama tamamlandı. ${requested} istendi, ${found} görsel bulundu.`}
-          {view === "empty" && "Doğrulanmış görsel bulunamadı."}
+          {view === "results" &&
+            `Arama tamamlandı. ${requested} istendi, ${found} görsel bulundu. Süre: ${formatElapsedLabel(elapsedSeconds)}.`}
+          {view === "empty" &&
+            `Doğrulanmış görsel bulunamadı. Süre: ${formatElapsedLabel(elapsedSeconds)}.`}
           {view === "error" && requestError}
         </p>
 
@@ -489,7 +513,11 @@ export default function App() {
                 </p>
                 <h1 className="mt-3 text-3xl font-bold text-white">“{keyword}” sonuçları</h1>
                 <p className="mt-2 text-slate-400">
-                  {requested} istendi, {found} doğrulanmış görsel bulundu.
+                  {requested} istendi, {found} doğrulanmış görsel bulundu ·{" "}
+                  <span className="tabular-nums text-slate-300">
+                    {formatElapsed(elapsedSeconds)}
+                  </span>{" "}
+                  sürdü
                 </p>
               </div>
 
@@ -530,7 +558,11 @@ export default function App() {
               </p>
 
               <p className="mt-4 text-sm text-slate-400">
-                {requested} istendi, {found} doğrulanmış görsel bulundu.
+                {requested} istendi, {found} doğrulanmış görsel bulundu ·{" "}
+                <span className="tabular-nums text-slate-300">
+                  {formatElapsed(elapsedSeconds)}
+                </span>{" "}
+                sürdü
               </p>
 
               <button
