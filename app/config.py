@@ -27,12 +27,14 @@ DETECT_THRESHOLD = 0.25
 
 DOWNLOAD_TIMEOUT = 4
 # Ne işe yarar: Bir görselin indirilmesi için beklenecek maksimum süre (sn).
-# Neden bu değer: Çoğu görsel host'u bu sürede yanıt veriyor; daha uzun
-#   beklemek toplu indirmede tıkanmaya yol açıyor.
-# Değişirse: Artarsa -> yavaş sunuculardan da indirme şansı artar ama toplam
-#   iş süresi uzar. Azalırsa -> yavaş bağlantılarda gereksiz timeout hataları.
-# Bu gerekçe 8 için yazılmıştı. Yeni değerin arkasındaki asıl sebep
-# (yuva açlığı + ölçülen başarı oranının düşmemesi)
+# Neden bu değer: 8 sn timeout ile ölü bir URL, iki retry ve ortalama
+#   1,5 sn retry gecikmeleriyle 8 + 1,5 + 8 + 1,5 + 8 ≈ 27 sn boyunca
+#   bir indirme yuvasını tutuyordu. Beş yuvalı havuzda bu kapasitenin
+#   %20'siydi. Ölçümlerde timeout'u 4 sn'ye indirmenin indirme başarı
+#   oranını düşürmediği görüldü; aynı kötü durum yaklaşık 15 sn'ye iner.
+# Değişirse: Artarsa -> yavaş sunuculara daha fazla süre tanınır, ancak
+#   ulaşılamayan URL'ler yuvaları daha uzun tutar. Azalırsa -> havuz daha
+#   hızlı boşalır, fakat gerçekten yavaş yanıt veren kaynaklar kaybedilebilir.
 
 DOWNLOAD_RETRIES = 2
 # Ne işe yarar: Bir indirme timeout/hata verirse kaç kez daha denenecek.
@@ -52,7 +54,7 @@ DOWNLOAD_RETRY_DELAY_MAX = 2
 # --- Kaynak arama servisi ---
 
 SEARCH_RETRIES = 3
-# Ne işe yarar: Arama servisi (ör. rate limit/5xx) hata verirse toplam kaç
+# Ne işe yarar: Arama servisi (ör. rate limit/5xx) hata verirse sayfa başına kaç
 #   deneme yapılacak. DOWNLOAD_RETRIES ise ilk denemeden sonraki ek deneme
 #   sayısıdır; iki ayarın semantiği bilinçli olarak farklıdır.
 # Neden bu değer: Servisin geçici hatalarının çoğu birkaç denemede geçiyor;
@@ -101,8 +103,15 @@ MAX_FILE_SIZE = 10 * 1024 * 1024  # 10MB
 # Değişirse: Artarsa -> disk/bellek kullanımı ve indirme süresi artabilir.
 #   Azalırsa -> yüksek çözünürlüklü meşru görseller reddedilebilir.
 
-MAX_CONCURRENT_DOWNLOADS = 12  # Aynı anda indirilecek maksimum görsel sayısı
-# (ilk başta 5 idi,testlerde 12 yi de problem olmadığı için 12 yaptım)
+MAX_CONCURRENT_DOWNLOADS = 12
+# Ne işe yarar: Aynı anda çalışabilecek en fazla görsel indirme sayısı.
+# Neden bu değer: Beş yuvalı havuzda takılan tek bir istek kapasitenin
+#   %20'sini kullanılamaz hâle getiriyordu; 12 yuvada bu oran yaklaşık
+#   %8'e düşer. Aday URL'ler web araması sonuçlarından geldiği için
+#   istekler tipik olarak farklı kaynak sunuculara dağılır.
+# Değişirse: Artarsa -> takılan tek isteğin toplam kapasiteye etkisi azalır,
+#   ancak bağlantı, bellek ve uzak sunucu yükü artar. Azalırsa -> kaynak
+#   kullanımı düşer, fakat yavaş URL'ler havuzu daha kolay tıkar.
 DOWNLOAD_CHUNK_SIZE = 128 * 1024  # İndirme sırasında okunacak parça boyutu (128 KB)
 
 NON_RETRYABLE_STATUS_CODES = [

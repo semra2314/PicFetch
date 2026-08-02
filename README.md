@@ -124,12 +124,6 @@ olmadan da çalışır.
 > `uvicorn --reload` yalnızca `.py` dosyalarını izler. Arayüzde yaptığınız değişiklik
 > `pnpm build` çalıştırılmadan tarayıcıya yansımaz.
 
-**GPU kullanmak isterseniz (isteğe bağlı):** `torch` `requirements.txt`'te yer almaz,
-ultralytics bağımlılığı olarak gelir ve varsayılan olarak CPU sürümü kurulur. NVIDIA
-kartınız varsa [pytorch.org](https://pytorch.org/get-started/locally/) üzerinden CUDA'lı
-sürümü kurabilirsiniz — kod değişikliği gerekmez, ultralytics donanımı kendisi tespit
-eder. Bu tamamen yerel bir tercihtir; `requirements.txt`'i ve CI'ı etkilemez.
-
 ---
 
 ## Çalıştırma
