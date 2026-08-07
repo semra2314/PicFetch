@@ -133,13 +133,14 @@ DOWNLOADS_DIR = PROJECT_ROOT / "data" / "downloads"
 #   üzerinden okunmalı — koda gömülü olursa testler prod klasörüne yazar.
 
 
-MODEL_NAME = "yoloe-26m-seg.pt"
+MODEL_NAME = "yoloe-26s-seg.pt"
 # Ne işe yarar: Nesne tespiti için kullanılan model dosyasının adı.
-# Neden bu değer: Şu an detector.py içinde sabit kodlanmış; buraya taşınıyor
-#   ki model boyutu/versiyonu değiştirilmek istendiğinde (ör. canlıda
-#   performans/doğruluk denemesi) tek satır değişip yeniden başlatmak yetsin.
-# Değişirse: Model dosyasının proje içinde/erişilebilir yolda bulunması
-#   gerekir; aksi halde detector başlatılamaz.
+# Neden bu değer: small, CPU'da medium'dan ~2,7 kat hızlı çıkarım yapıyor
+#   (2 çekirdekli sunucuda görsel başına ~2,1 sn → ~0,78 sn) ve 20+ kelimeyle
+#   yapılan karşılaştırmada ayırt etme gücünde kayıp gözlenmedi.
+# Değişirse: Model dosyasının erişilebilir olması gerekir. Ayrıca model boyutu
+#   değişince DETECT_THRESHOLD gözden geçirilmeli — küçük modeller tipik olarak
+#   daha düşük güven skoru üretir.
 
 MAX_COUNT = 50
 # Ne işe yarar: Tek istekte istenebilecek maksimum görsel sayısı.
