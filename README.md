@@ -174,8 +174,9 @@ taşır; ayrıca `requested` ve `found` sayılarını döndürür. Görseller `i
 
 ### Ne kadar sürer?
 
-Beklemenin büyük kısmı **indirme** aşamasında geçer. GPU'lu bir makinede yapılan bir
-ölçümde 50 görsellik bir arama uçtan uca ~39 saniye sürdü ve şöyle dağıldı:
+Beklemenin büyük kısmı **indirme** aşamasında geçer. GPU'lu bir dizüstü bilgisayarda
+medium modelle yapılan bir ölçümde 50 görsellik bir arama uçtan uca ~39 saniye sürdü
+ve şöyle dağıldı:
 
 | Aşama | Süre | Pay |
 |---|---|---|
@@ -183,37 +184,71 @@ Beklemenin büyük kısmı **indirme** aşamasında geçer. GPU'lu bir makinede 
 | İndirme | ~32 sn | %82 |
 | Doğrulama | ~6 sn | %15 |
 
-Doğrulama aşaması donanıma çok bağlıdır. Aynı model ve aynı görsellerle yapılan ölçümde
-görsel başına çıkarım süresi **GPU'da ~63 ms, CPU'da ~409 ms** çıktı — yaklaşık **6,5
-kat** fark. CPU'lu bir makinede doğrulama, indirmeyle başa baş gelir veya onu geçer.
-Arama ve indirme süreleri donanımdan etkilenmez.
+Bu dağılım donanıma bağlıdır ve CPU'lu makinelerde doğrulamanın payı belirgin biçimde
+büyür; arama ve indirme süreleri donanımdan etkilenmez.
 
-Doğrulama, istenen sayıya ulaşıldığı anda durur (bkz. "Sonuçlar en iyi eşleşmeler mi?").
-Bu yüzden doğrulama oranı yüksek kelimelerde arama belirgin biçimde daha hızlı biter.
+Aynı model ve aynı görsellerle yapılan ölçümde görsel başına çıkarım süresi **GPU'da
+~63 ms, CPU'da ~409 ms** çıktı (dizüstü bilgisayar, medium model) — yaklaşık **6,5
+kat** fark.
+
+Model boyutu ikinci bir çarpan. 2 çekirdekli bir bulut sunucusunda (Hetzner CX, 4 GB)
+görsel başına çıkarım medium modelde **~2,1 sn**, small modelde **~0,78 sn** ölçüldü.
+Aradaki ~2,7 katlık fark modelden geliyor; dizüstü CPU'suyla arasındaki fark ise
+muhtemelen çekirdek sayısı ve saat hızından. Proje varsayılan olarak small kullanır
+(bkz. `MODEL_NAME`).
+
+Doğrulama, istenen sayıya ulaşıldığı anda durur (bkz. "Sonuçlar en iyi eşleşmeler
+mi?"). Bu yüzden doğrulama oranı yüksek kelimelerde arama belirgin biçimde daha hızlı
+biter.
 
 Arayüz beklerken geçen süreyi gösterir ve arama bitince toplam süreyi ekranda bırakır.
 Uzun bekleme **normaldir**, takılma değildir.
 
 ### "İstenen sayıya ulaşılamadı" neden olur?
 
-Doğrulama oranı kelimeye göre ciddi biçimde değişir. Tek kelimeli aramalarda ölçülen
-örnekler:
+Doğrulama oranı kelimeye göre ciddi biçimde değişir. Small modelle, 50 görsel istenerek
+yapılan ölçümler:
 
-| Kelime | İncelenen | Eşiği geçen | Oran |
+| Kelime | İncelenen | Eşiği geçen | Not |
 |---|---|---|---|
-| cat | 50 | 50 | %100 |
-| car | 62 | 50 | %81 |
-| ananas | 32 | 18 | %56 |
-| forest | 32 | 10 | ~%31 |
-| pineapple | 85 | 22 | %26 |
+| laptop | 50 | 50 | erken çıkış |
+| elephant | 50 | 50 | erken çıkış |
+| bicycle | 54 | 50 | erken çıkış |
+| pizza | 61 | 50 | erken çıkış |
+| umbrella | 52 | 46 | %88 |
+| coffee cup | 61 | 44 | %72 |
+| clock | 66 | 37 | %56 |
+| sunflower | 78 | 40 | %51 |
+| backpack | 89 | 42 | %47 |
+| hammer | 73 | 18 | %25 |
+| guitar | 84 | 16 | %19 |
+| handsaw | 74 | 11 | %15 |
+| tractor | 79 | 9 | %11 |
+| kettle | 80 | 8 | %10 |
 
-Nesnenin doğranmış, dilimlenmiş, çizim/logo hâlinde veya kadrajı dolduracak biçimde
-göründüğü görsellerde model zorlanır. `pineapple` sonuçlarının çoğu yemek tarifi
-görselidir (doğranmış, ızgara, tabakta) ve model bunları ananas olarak tanımaz.
-`forest` gibi sahne isimlerinde ise nesne düzeyinde kutu çizilecek bir örnek yoktur.
+"Erken çıkış" satırlarında havuzun tamamı taranmadığı için oran hesaplanamaz; bu
+kelimelerde sistem istenen sayıyı sorunsuz buluyor demektir.
 
-Bu bir hata değil, modelin sınırıdır — sistem durumu "50 istendi, 22 bulundu" diyerek
-dürüstçe gösterir. İstediğiniz sayıya ulaşamıyorsanız somut ve tekil bir nesne adı
+Düşük oranların birkaç ayrı sebebi var:
+
+**Model nesneyi tanımıyor.** Nesnenin doğranmış, dilimlenmiş, çizim/logo hâlinde veya
+kadrajı dolduracak biçimde göründüğü görsellerde model zorlanır. `tractor`
+sonuçlarının çoğu geniş tarla manzarasıdır ve traktör kadrajın küçük bir kısmını
+kaplar. `forest` gibi sahne isimlerinde ise nesne düzeyinde kutu çizilecek bir örnek
+yoktur.
+
+**Arama katmanı alakasız görsel getiriyor.** Bu bir doğrulama sorunu değildir ve
+düşük oranı modele yazmak yanıltıcı olur. Ölçülen örnekler: `iron` (6/83) sonuçları
+periyodik tablo ve anemi infografikleriyle doludur — `clothes iron` aynı nesne için
+29/60 verir. `saw` (4/70) aynı adlı filmin afişlerini getirir; `handsaw` 11/74 verir.
+Log'daki URL'lere bakmak, sorunun hangi katmanda olduğunu genellikle hemen gösterir.
+
+**Kelime modelin beklediği anlamda değil.** `mouse` 50/90 ile bilgisayar faresi
+bulur; `mouse animal` ise gerçek fare fotoğraflarında 3/79 verir. Model için "mouse"
+bir çevre birimidir.
+
+Bu bir hata değil, sistemin sınırıdır — durum "50 istendi, 22 bulundu" diyerek
+dürüstçe gösterilir. İstediğiniz sayıya ulaşamıyorsanız somut ve tekil bir nesne adı
 denemek genellikle işe yarar.
 
 ### Kelime seçimi hakkında bilinmeyenler
@@ -259,7 +294,7 @@ değer / değişirse ne olur* açıklaması bulunur. Sık dokunulanlar:
 | `SEARCH_BACKEND` | `bing` | Kullanılacak arama motoru |
 | `MAX_CONCURRENT_DOWNLOADS` | 12 | Aynı anda kaç indirme çalışacağı |
 | `DOWNLOAD_TIMEOUT` | 4 | Bir indirme için beklenecek en fazla süre (sn) |
-| `MODEL_NAME` | `yoloe-26m-seg.pt` | Kullanılan model dosyası |
+| `MODEL_NAME` | `yoloe-26s-seg.pt` | Kullanılan model dosyası |
 
 > `SEARCH_BACKEND`'e geçersiz bir motor adı yazılırsa kütüphane hata vermez, sessizce
 > otomatik seçime döner. Değiştirirken log'dan hangi motorun çalıştığını doğrulayın.
