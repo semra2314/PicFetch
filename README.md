@@ -1,7 +1,6 @@
 # PicFetch
 
-Kullanıcının verdiği bir kelimeye göre web'den görsel arayan, **YOLOE-26** ile o kelimenin
-görselde bulunup bulunmadığını doğrulayan bir görsel arama sistemi.
+Web’den görsel arayan, sonuçları YOLOE-26 ile doğrulayan ve yalnızca aranan nesneyi içeren görselleri sunan akıllı görsel arama sistemi.
 
 Sıradan bir görsel aramasından farkı şu: arama motorunun döndürdüğü sonuçlara güvenmez.
 Her adayı indirir, açık-sözcük bir nesne tespit modelinden geçirir ve yalnızca modelin
